@@ -22,6 +22,10 @@ import {
   Ball2D,
 } from "../objects/Ball2D";
 
+import {
+  Timer2D,
+} from "../objects/Timer2D";
+
 import { BouncingBallPhysics } from "../PhysicalSystems/BouncingBallPhysics";
 
 const PIXELS_PER_METER = 500;
@@ -30,9 +34,14 @@ function BouncingBallContents() {
 
   const ballRef = useRef<Ball2D | null>(null);
   const physicsRef = useRef<BouncingBallPhysics | null>(null);
+  const timerRef = useRef<Timer2D | null>(null);
 
   useExperiment2D(
     (experiment: Experiment2D) => {
+
+      const timer = new Timer2D(1000, 60);
+      timerRef.current = timer;
+      experiment.add(timer);
 
       experiment.add(
         new Table2D(
@@ -74,7 +83,6 @@ function BouncingBallContents() {
           );
       };
 
-
       experiment.add(ball);
     }
   );
@@ -82,6 +90,13 @@ function BouncingBallContents() {
 useTick((ticker) => {
   const ball = ballRef.current;
   const physics = physicsRef.current;
+  const timer = timerRef.current;
+
+  const deltaTime =
+    ticker.deltaMS / 1000;
+
+  timer.update(deltaTime);
+
 
   if (
     ball === null ||
@@ -91,8 +106,6 @@ useTick((ticker) => {
     return;
   }
 
-  const deltaTime =
-    ticker.deltaMS / 1000;
 
   const newY =
     physics.move(deltaTime);
@@ -101,6 +114,8 @@ useTick((ticker) => {
     ball.xMeters,
     newY
   );
+
+
 });
 
   return null;
