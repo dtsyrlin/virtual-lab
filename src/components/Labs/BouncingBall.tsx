@@ -12,19 +12,19 @@ import {
 
 import {
   Ruler2D,
-} from "../objects/Ruler2D";
+} from "../Objects/Ruler2D";
 
 import {
   Table2D,
-} from "../objects/Table2D";
+} from "../Objects/Table2D";
 
 import {
   Ball2D,
-} from "../objects/Ball2D";
+} from "../Objects/Ball2D";
 
 import {
   Timer2D,
-} from "../objects/Timer2D";
+} from "../Objects/Timer2D";
 
 import { BouncingBallPhysics } from "../PhysicalSystems/BouncingBallPhysics";
 
@@ -95,7 +95,7 @@ useTick((ticker) => {
   const deltaTime =
     ticker.deltaMS / 1000;
 
-  timer.update(deltaTime);
+  timer?.update(deltaTime);
 
 
   if (

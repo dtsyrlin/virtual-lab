@@ -5,12 +5,15 @@ import type { Mesh } from 'three'
 function Ball()
 {
     const sphereRef = useRef<Mesh>(null)
-    const time = useRef(0)
     const velocity_Y = useRef(0)
     const acceleration_Y = -9.81
-    useFrame((state, deltaTime) => {
-        sphereRef.current.position.y += velocity_Y.current * deltaTime
-        if(sphereRef.current.position.y <= 1){
+    useFrame((_state, deltaTime) => {
+        const sphere = sphereRef.current
+        if (!sphere) return
+
+        sphere.position.y += velocity_Y.current * deltaTime
+
+        if(sphere.position.y <= 1){
             velocity_Y.current = -velocity_Y.current
         }
         else
