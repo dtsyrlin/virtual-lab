@@ -5,30 +5,37 @@ import type { Mesh } from 'three'
 function Ball()
 {
     const sphereRef = useRef<Mesh>(null)
-    let time = 0
+    const time = useRef(0)
+    const velocity_Y = useRef(0)
+    const acceleration_Y = -9.81
     useFrame((state, deltaTime) => {
-    time += deltaTime
-    //sphereRef.current.position.z = 1*Math.cos(time)**2
-    sphereRef.current.position.x = 1*Math.sin(time)**2
+        sphereRef.current.position.y += velocity_Y.current * deltaTime
+        if(sphereRef.current.position.y <= 1){
+            velocity_Y.current = -velocity_Y.current
+        }
+        else
+        {
+            velocity_Y.current += acceleration_Y * deltaTime
+        }
     })    
     return(
       <mesh ref={sphereRef} position={[0, 2, 1]}>
-        <sphereGeometry args={[2, 32, 32]} />
-        <meshPhysicalMaterial color="metallic" />
+        <sphereGeometry args={[1, 32, 32]} />
+        <meshPhysicalMaterial color="silver" />
       </mesh>
     )
 }
 
 function LabView() {
   return (
-    <Canvas camera={{ position: [2, 2, 10], fov: 50 }}>
+    <Canvas camera={{ position: [0, 4, 5], fov: 50 }}>
       <ambientLight intensity={0.5} />
       <directionalLight position={[-4, 2, 8]} intensity={2} />
 
       <Ball />
 
-      <mesh position={[1, 0, -1]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[5, 6]} />
+      <mesh position={[0, -2, 0]} rotation={[-Math.PI * 0.5, 0, 0]}>
+        <planeGeometry args={[6, 4]} />
         <meshStandardMaterial color="silver" />
       </mesh>
     </Canvas>
