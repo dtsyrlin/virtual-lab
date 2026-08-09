@@ -26,12 +26,22 @@ import {
   Timer2D,
 } from "../Objects/Timer2D";
 
+import {
+  GravitySelector2D,
+} from "../Objects/GravitySelector2D";
+
 import { BouncingBallPhysics } from "../PhysicalSystems/BouncingBallPhysics";
 
 const PIXELS_PER_METER = 500;
 
-function BouncingBallContents() {
+const TableTopPosMetersFromTop = 1.2; // top surface in meters from screen top
 
+
+function BouncingBallContents({
+  gravityRef,
+}: {
+  gravityRef: React.MutableRefObject<number>;
+}) {
   const ballRef = useRef<Ball2D | null>(null);
   const physicsRef = useRef<BouncingBallPhysics | null>(null);
   const timerRef = useRef<Timer2D | null>(null);
@@ -39,16 +49,16 @@ function BouncingBallContents() {
   useExperiment2D(
     (experiment: Experiment2D) => {
 
-      const timer = new Timer2D(1000, 60);
+      const timer = new Timer2D(700, 100);
       timerRef.current = timer;
       experiment.add(timer);
 
       experiment.add(
         new Table2D(
-          0.3,                // x position in meters
-          1.2,               // top surface in meters from screen top
-          2.2,                // width in meters
-          0.05,               // thickness in meters
+          0.3,          // x position in meters
+          TableTopPosMetersFromTop,  // top surface in meters from screen top
+          2.2,          // width in meters
+          0.05,         // thickness in meters
           PIXELS_PER_METER
         )
       );
@@ -57,8 +67,8 @@ function BouncingBallContents() {
         new Ruler2D(
           1,
           {
-            x: 60,
-            y: 600,
+            x: 0.8 * PIXELS_PER_METER,
+            y: TableTopPosMetersFromTop * PIXELS_PER_METER,
           },
           PIXELS_PER_METER,
           "vertical"
@@ -67,7 +77,7 @@ function BouncingBallContents() {
 
       const ball = new Ball2D(
         1.0, // x
-        0.4, // y
+        TableTopPosMetersFromTop - 0.1, // y
         0.1, // radius
         1.2,
         PIXELS_PER_METER
@@ -79,11 +89,33 @@ function BouncingBallContents() {
           new BouncingBallPhysics(
             initialY,
             bottomY,
-            9.81
+            gravityRef.current
           );
       };
 
       experiment.add(ball);
+
+      const gravitySelector =
+        new GravitySelector2D(
+          700,
+          40
+        );
+
+
+      gravitySelector.onGravityChanged =
+        (gravity) => {
+          gravityRef.current = gravity;
+
+          physicsRef.current?.setAcceleration(gravity);
+      };
+
+
+      experiment.add(
+        gravitySelector
+      );
+
+
+
     }
   );
 
@@ -122,13 +154,17 @@ useTick((ticker) => {
 }
 
 export default function BouncingBall() {
+    const gravityRef =
+        useRef(9.81);
   return (
-    <Application
-      resizeTo={window}
-      backgroundColor={0xe8edf2}
-      antialias
-    >
-      <BouncingBallContents />
-    </Application>
+
+      <Application
+        resizeTo={window}
+        backgroundColor={0xe8edf2}
+        antialias
+      >
+        <BouncingBallContents gravityRef={gravityRef} />
+      </Application>
+
   );
 }

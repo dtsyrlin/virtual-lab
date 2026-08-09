@@ -4,7 +4,7 @@ export class BouncingBallPhysics {
   private velocityY = 0;
 
   private readonly bottomY: number;
-  private readonly accelerationY: number;
+  private accelerationY: number;
 
   constructor(
     initialY: number,
@@ -28,5 +28,9 @@ export class BouncingBallPhysics {
     }
 
     return this.y;
+  }
+
+  public setAcceleration(accelerationY: number): void {
+      this.accelerationY = accelerationY;
   }
 }
