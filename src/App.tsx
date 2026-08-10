@@ -2,9 +2,9 @@ import { useState } from 'react'
 import './App.css'
 
 import BouncingBall from './components/Labs/BouncingBall'
-import LabView from './components/LabView'
+import StackingBars from './components/Labs/StackingBars'
 
-type Page = 'menu' | 'bouncingBall' | 'labView'
+type Page = 'menu' | 'bouncingBall' | 'StackingBars'
 
 function App() {
   const [page, setPage] = useState<Page>('menu')
@@ -23,7 +23,7 @@ function App() {
     )
   }
 
-  if (page === 'labView') {
+  if (page === 'StackingBars') {
     return (
       <>
         <div style={{ padding: '10px' }}>
@@ -32,7 +32,7 @@ function App() {
           </button>
         </div>
 
-        <LabView />
+        <StackingBars />
       </>
     )
   }
@@ -55,8 +55,8 @@ function App() {
           Bouncing Ball
         </button>
 
-        <button onClick={() => setPage('labView')}>
-          Lab View
+        <button onClick={() => setPage('StackingBars')}>
+          Stacking Bars
         </button>
       </div>
     </div>
