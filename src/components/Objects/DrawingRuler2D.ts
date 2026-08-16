@@ -6,6 +6,10 @@ import {
   TextStyle,
 } from "pixi.js";
 
+import {
+  DrawingSurface2D,
+} from "./DrawingSurface2D";
+
 export type Point2D = {
   x: number;
   y: number;
@@ -15,17 +19,11 @@ export type RulerOrientation =
   | "horizontal"
   | "vertical";
 
-/**
- * A visual two-dimensional ruler.
- *
- * This class contains no drawing behavior
- * and no physics.
- *
- * The ruler can be dragged and rotated.
- */
-export class Ruler2D extends Container {
+export class DrawingRuler2D extends Container {
   public readonly lengthMeters: number;
   public readonly pixelsPerMeter: number;
+
+  private readonly drawingSurface: DrawingSurface2D;
 
   private readonly rulerWidthPixels = 50;
   private readonly rotationHandleRadius = 18;
@@ -48,10 +46,30 @@ export class Ruler2D extends Container {
   private readonly topRotationHandle: Graphics;
   private readonly bottomRotationHandle: Graphics;
 
+  /*
+   * Pencil state.
+   */
+  private pencilAttached = false;
+  private pencilLocalY = 0;
+
+  private readonly pencilGraphics: Graphics;
+
+  /*
+   * Browser context-menu suppression.
+   */
+  private contextMenuListener:
+    | ((event: MouseEvent) => void)
+    | null = null;
+
+  private contextMenuCanvas:
+    | HTMLCanvasElement
+    | null = null;
+
   constructor(
     lengthMeters: number,
     initialPosition: Point2D,
     pixelsPerMeter: number,
+    drawingSurface: DrawingSurface2D,
     orientation: RulerOrientation = "vertical"
   ) {
     super();
@@ -74,8 +92,11 @@ export class Ruler2D extends Container {
     this.pixelsPerMeter =
       pixelsPerMeter;
 
+    this.drawingSurface =
+      drawingSurface;
+
     /*
-     * Ruler origin is its bottom-left corner.
+     * Ruler origin remains bottom-left.
      */
     this.position.set(
       initialPosition.x,
@@ -85,10 +106,8 @@ export class Ruler2D extends Container {
     this.drawRuler();
 
     /*
-     * Invisible rotation handles.
-     *
-     * The grabbing locations are centered
-     * on the two ends of the ruler.
+     * Rotation handles remain centered
+     * on the ruler ends.
      */
     this.topRotationHandle =
       this.createRotationHandle(
@@ -108,6 +127,32 @@ export class Ruler2D extends Container {
       this.bottomRotationHandle
     );
 
+    /*
+     * Visible pencil point.
+     */
+    this.pencilGraphics =
+      new Graphics();
+
+    this.pencilGraphics
+      .circle(
+        0,
+        0,
+        6
+      )
+      .fill({
+        color: 0x111111,
+      });
+
+    this.pencilGraphics.eventMode =
+      "none";
+
+    this.pencilGraphics.visible =
+      false;
+
+    this.addChild(
+      this.pencilGraphics
+    );
+
     if (
       orientation === "horizontal"
     ) {
@@ -125,10 +170,6 @@ export class Ruler2D extends Container {
       this.pixelsPerMeter
     );
   }
-
-  // ==================================================
-  // DRAW RULER
-  // ==================================================
 
   private drawRuler(): void {
     const centimeters =
@@ -155,14 +196,6 @@ export class Ruler2D extends Container {
     const body =
       new Graphics();
 
-    /*
-     * Local ruler coordinates:
-     *
-     * bottom-left = (0, 0)
-     *
-     * The ruler extends upward,
-     * therefore y is negative.
-     */
     body
       .rect(
         0,
@@ -253,13 +286,6 @@ export class Ruler2D extends Container {
         fill: 0x201a10,
       });
 
-    /*
-     * Start at 10 and stop before the
-     * ruler's maximum length.
-     *
-     * Therefore there is no 0 or final
-     * endpoint label.
-     */
     for (
       let centimeter = 10;
       centimeter < centimeters;
@@ -284,24 +310,12 @@ export class Ruler2D extends Container {
     }
   }
 
-  // ==================================================
-  // ROTATION HANDLES
-  // ==================================================
-
   private createRotationHandle(
     end: "top" | "bottom"
   ): Graphics {
     const handle =
       new Graphics();
 
-    /*
-     * IMPORTANT:
-     *
-     * The grab points remain in the MIDDLE
-     * of the ruler ends.
-     *
-     * These are NOT the rotation pivots.
-     */
     if (
       end === "top"
     ) {
@@ -316,9 +330,6 @@ export class Ruler2D extends Container {
       );
     }
 
-    /*
-     * Invisible circular hit area.
-     */
     handle
       .circle(
         0,
@@ -339,10 +350,6 @@ export class Ruler2D extends Container {
     return handle;
   }
 
-  // ==================================================
-  // INTERACTION
-  // ==================================================
-
   private enableInteraction(): void {
     this.eventMode =
       "static";
@@ -350,9 +357,6 @@ export class Ruler2D extends Container {
     this.cursor =
       "grab";
 
-    /*
-     * Drag ruler by its body.
-     */
     this.on(
       "pointerdown",
       this.handlePointerDown,
@@ -360,10 +364,23 @@ export class Ruler2D extends Container {
     );
 
     /*
-     * Rotation handles.
+     * Right-click:
      *
-     * stopPropagation prevents grabbing an
-     * end from also starting normal dragging.
+     * first  -> place pencil
+     * second -> draw straight line
+     */
+    this.on(
+      "rightdown",
+      this.handleRightClick,
+      this
+    );
+
+    /*
+     * Rotation handles prevent the ruler-body
+     * pointerdown from firing.
+     *
+     * Therefore the attached pencil survives
+     * while rotating.
      */
     this.topRotationHandle.on(
       "pointerdown",
@@ -406,17 +423,210 @@ export class Ruler2D extends Container {
       this.handlePointerUp,
       this
     );
+
+    this.on(
+      "added",
+      this.disableContextMenu,
+      this
+    );
   }
 
-  // ==================================================
-  // DRAGGING
-  // ==================================================
+  private disableContextMenu(): void {
+    const canvases =
+      document.querySelectorAll(
+        "canvas"
+      );
+
+    if (
+      canvases.length === 0
+    ) {
+      return;
+    }
+
+    const canvas =
+      canvases[
+        canvases.length - 1
+      ];
+
+    this.contextMenuCanvas =
+      canvas;
+
+    this.contextMenuListener =
+      (
+        event: MouseEvent
+      ) => {
+        event.preventDefault();
+      };
+
+    canvas.addEventListener(
+      "contextmenu",
+      this.contextMenuListener
+    );
+  }
+
+  private handleRightClick(
+    event: FederatedPointerEvent
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const localPosition =
+      event.getLocalPosition(
+        this
+      );
+
+    const clickedLocalY =
+      Math.max(
+        -this.rulerLengthPixels,
+        Math.min(
+          0,
+          localPosition.y
+        )
+      );
+
+    /*
+     * First right-click:
+     *
+     * attach pencil.
+     */
+    if (
+      !this.pencilAttached
+    ) {
+      this.attachPencil(
+        clickedLocalY
+      );
+
+      return;
+    }
+
+    /*
+     * Second right-click:
+     *
+     * draw straight line along the
+     * current ruler edge.
+     */
+    this.drawStraightLine(
+      this.pencilLocalY,
+      clickedLocalY
+    );
+
+    this.removePencil();
+  }
+
+  private attachPencil(
+    localY: number
+  ): void {
+    this.pencilLocalY =
+      localY;
+
+    /*
+     * Pencil sits exactly on the
+     * centimeter-tick edge.
+     */
+    this.pencilGraphics.position.set(
+      this.rulerWidthPixels,
+      this.pencilLocalY
+    );
+
+    this.pencilGraphics.visible =
+      true;
+
+    this.pencilAttached =
+      true;
+  }
+
+  private removePencil(): void {
+    this.pencilAttached =
+      false;
+
+    this.pencilGraphics.visible =
+      false;
+  }
+
+  private drawStraightLine(
+    startLocalY: number,
+    endLocalY: number
+  ): void {
+    const start =
+      this.localRulerPointToParent(
+        this.rulerWidthPixels,
+        startLocalY
+      );
+
+    const end =
+      this.localRulerPointToParent(
+        this.rulerWidthPixels,
+        endLocalY
+      );
+
+    /*
+     * Ruler no longer knows HOW drawings
+     * are stored.
+     *
+     * It simply asks the shared drawing
+     * surface to draw a line.
+     */
+    this.drawingSurface.drawLine(
+      start,
+      end
+    );
+  }
+
+  private drawPencilMovement(
+    oldPosition: Point2D,
+    newPosition: Point2D
+  ): void {
+    /*
+     * Repeated small line segments form
+     * the circular arc during rotation.
+     */
+    this.drawingSurface.drawLine(
+      oldPosition,
+      newPosition
+    );
+  }
+
+  private localRulerPointToParent(
+    localX: number,
+    localY: number
+  ): Point2D {
+    const cos =
+      Math.cos(
+        this.rotation
+      );
+
+    const sin =
+      Math.sin(
+        this.rotation
+      );
+
+    return {
+      x:
+        this.position.x +
+        localX * cos -
+        localY * sin,
+
+      y:
+        this.position.y +
+        localX * sin +
+        localY * cos,
+    };
+  }
+
+  private getPencilPosition(): Point2D {
+    return (
+      this.localRulerPointToParent(
+        this.rulerWidthPixels,
+        this.pencilLocalY
+      )
+    );
+  }
 
   private handlePointerDown(
     event: FederatedPointerEvent
   ): void {
     /*
-     * Left mouse button only.
+     * Only ordinary left-click belongs here.
      */
     if (
       event.button !== 0
@@ -436,6 +646,16 @@ export class Ruler2D extends Container {
       return;
     }
 
+    /*
+     * Left-clicking the ruler body
+     * removes the attached pencil.
+     */
+    if (
+      this.pencilAttached
+    ) {
+      this.removePencil();
+    }
+
     this.isDragging =
       true;
 
@@ -447,10 +667,6 @@ export class Ruler2D extends Container {
         this.parent
       );
 
-    /*
-     * Preserve where on the ruler the
-     * user grabbed it.
-     */
     this.dragOffsetX =
       pointerPosition.x -
       this.position.x;
@@ -460,42 +676,12 @@ export class Ruler2D extends Container {
       this.position.y;
   }
 
-  private moveWithPointer(
-    event: FederatedPointerEvent
-  ): void {
-    if (
-      this.parent === null
-    ) {
-      return;
-    }
-
-    const pointerPosition =
-      event.getLocalPosition(
-        this.parent
-      );
-
-    this.position.set(
-      pointerPosition.x -
-        this.dragOffsetX,
-
-      pointerPosition.y -
-        this.dragOffsetY
-    );
-  }
-
-  // ==================================================
-  // ROTATION
-  // ==================================================
-
   private handleRotationPointerDown(
     event: FederatedPointerEvent,
     grabbedEnd:
       | "top"
       | "bottom"
   ): void {
-    /*
-     * Left mouse button only.
-     */
     if (
       event.button !== 0
     ) {
@@ -515,17 +701,13 @@ export class Ruler2D extends Container {
       true;
 
     /*
-     * This is the important behavior we
-     * established earlier:
+     * Grab TOP:
      *
-     * Grab TOP end:
-     * rotate around BOTTOM-RIGHT corner.
+     * pivot = bottom-right.
      *
-     * Grab BOTTOM end:
-     * rotate around TOP-RIGHT corner.
+     * Grab BOTTOM:
      *
-     * "Right" means the ruler edge containing
-     * the centimeter tick marks.
+     * pivot = top-right.
      */
     if (
       grabbedEnd === "top"
@@ -543,10 +725,6 @@ export class Ruler2D extends Container {
         -this.rulerLengthPixels;
     }
 
-    /*
-     * Convert the local pivot into the
-     * parent's coordinate system.
-     */
     const cos =
       Math.cos(
         this.rotation
@@ -576,12 +754,6 @@ export class Ruler2D extends Container {
         this.parent
       );
 
-    /*
-     * Remember the initial pointer angle.
-     *
-     * This allows rotation to begin smoothly
-     * without making the ruler jump.
-     */
     this.rotationStartPointerAngle =
       Math.atan2(
         pointerPosition.y -
@@ -599,6 +771,91 @@ export class Ruler2D extends Container {
 
     this.bottomRotationHandle.cursor =
       "grabbing";
+  }
+
+  private handlePointerMove(
+    event: FederatedPointerEvent
+  ): void {
+    if (
+      this.parent === null
+    ) {
+      return;
+    }
+
+    /*
+     * Normal dragging never draws.
+     *
+     * Clicking the body already removed
+     * the pencil.
+     */
+    if (
+      this.isDragging
+    ) {
+      this.moveWithPointer(
+        event
+      );
+
+      return;
+    }
+
+    /*
+     * While rotating, an attached pencil
+     * traces an arc.
+     */
+    if (
+      this.isRotating
+    ) {
+      let oldPencilPosition:
+        | Point2D
+        | null = null;
+
+      if (
+        this.pencilAttached
+      ) {
+        oldPencilPosition =
+          this.getPencilPosition();
+      }
+
+      this.rotateWithPointer(
+        event
+      );
+
+      if (
+        this.pencilAttached &&
+        oldPencilPosition !== null
+      ) {
+        const newPencilPosition =
+          this.getPencilPosition();
+
+        this.drawPencilMovement(
+          oldPencilPosition,
+          newPencilPosition
+        );
+      }
+    }
+  }
+
+  private moveWithPointer(
+    event: FederatedPointerEvent
+  ): void {
+    if (
+      this.parent === null
+    ) {
+      return;
+    }
+
+    const pointerPosition =
+      event.getLocalPosition(
+        this.parent
+      );
+
+    this.position.set(
+      pointerPosition.x -
+        this.dragOffsetX,
+
+      pointerPosition.y -
+        this.dragOffsetY
+    );
   }
 
   private rotateWithPointer(
@@ -636,12 +893,7 @@ export class Ruler2D extends Container {
       newRotation;
 
     /*
-     * Rotation changes where the ruler's
-     * local origin would normally appear.
-     *
-     * Recalculate the ruler position so that
-     * the selected opposite corner remains
-     * fixed in screen space.
+     * Keep opposite corner fixed.
      */
     const cos =
       Math.cos(
@@ -674,38 +926,6 @@ export class Ruler2D extends Container {
     );
   }
 
-  // ==================================================
-  // POINTER MOVE / UP
-  // ==================================================
-
-  private handlePointerMove(
-    event: FederatedPointerEvent
-  ): void {
-    if (
-      this.parent === null
-    ) {
-      return;
-    }
-
-    if (
-      this.isDragging
-    ) {
-      this.moveWithPointer(
-        event
-      );
-
-      return;
-    }
-
-    if (
-      this.isRotating
-    ) {
-      this.rotateWithPointer(
-        event
-      );
-    }
-  }
-
   private handlePointerUp(): void {
     this.isDragging =
       false;
@@ -723,16 +943,28 @@ export class Ruler2D extends Container {
       "grab";
   }
 
-  // ==================================================
-  // PUBLIC ORIENTATION
-  // ==================================================
-
   public setVertical(): void {
-    this.rotation = 0;
+    this.rotation =
+      0;
   }
 
   public setHorizontal(): void {
     this.rotation =
       Math.PI / 2;
+  }
+
+  public override destroy(): void {
+    if (
+      this.contextMenuCanvas !== null &&
+      this.contextMenuListener !== null
+    ) {
+      this.contextMenuCanvas
+        .removeEventListener(
+          "contextmenu",
+          this.contextMenuListener
+        );
+    }
+
+    super.destroy();
   }
 }

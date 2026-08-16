@@ -11,6 +11,10 @@ import {
 } from "./Experiment2D";
 
 import {
+  DrawingSurface2D,
+} from "../Objects/DrawingSurface2D";
+
+import {
   Ruler2D,
 } from "../Objects/Ruler2D";
 
@@ -63,7 +67,16 @@ function BouncingBallContents({
         )
       );
 
-      experiment.add(
+
+      const drawing = new DrawingSurface2D();
+
+      /*
+      * Add it first so drawings appear
+      * underneath the tools.
+      */
+      experiment.add(drawing);
+
+      const ruler1 =
         new Ruler2D(
           1,
           {
@@ -72,8 +85,10 @@ function BouncingBallContents({
           },
           PIXELS_PER_METER,
           "vertical"
-        )
-      );
+        );
+
+      experiment.add(ruler1);
+
 
       const ball = new Ball2D(
         1.0, // x

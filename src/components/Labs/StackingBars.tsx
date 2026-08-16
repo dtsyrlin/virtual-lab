@@ -16,14 +16,34 @@ import {
 } from "../Objects/HorizontalBar2D";
 
 import {
-  TextControls2D,
-} from "../Objects/TextControls2D";
+  HorizontalBarControl,
+} from "../Objects/HorizontalBarControl";
+
+import {
+  Ruler2D,
+} from "../Objects/Ruler2D";
 
 
-const PIXELS_PER_CM = 96 / 2.54;
+const PIXELS_PER_CM =
+  96 / 2.54;
 
-const SNAP_DISTANCE_X = 15;
-const SNAP_DISTANCE_Y = 20;
+const SNAP_DISTANCE_X =
+  15;
+
+const SNAP_DISTANCE_Y =
+  20;
+
+
+function randomInteger(
+  min: number,
+  max: number
+): number {
+
+  return Math.floor(
+    Math.random() *
+      (max - min + 1)
+  ) + min;
+}
 
 
 function StackingBarsContents() {
@@ -31,11 +51,34 @@ function StackingBarsContents() {
   useExperiment2D(
     (experiment: Experiment2D) => {
 
-      const copies: HorizontalBar2D[] = [];
+      const copies:
+        HorizontalBar2D[] = [];
+
+      const sourceBars:
+        HorizontalBar2D[] = [];
+
+
+      const clearCopies = () => {
+
+        for (
+          const copy
+          of copies
+        ) {
+
+          experiment.remove(
+            copy
+          );
+
+          copy.destroy();
+        }
+
+        copies.length = 0;
+      };
 
 
       /*
-       * Snap a bar to the closest suitable bar.
+       * Snap a bar to another
+       * bar or to the target.
        */
       const snapBar = (
         bar: HorizontalBar2D,
@@ -43,50 +86,104 @@ function StackingBarsContents() {
       ) => {
 
         const candidates = [
-          ...copies.filter(
-            other => other !== bar
-          ),
+          ...sourceBars,
+          ...copies,
           target,
-        ];
+        ].filter(
+          other =>
+            other !== bar
+        );
 
 
-        for (const other of candidates) {
+        for (
+          const other
+          of candidates
+        ) {
 
           /*
-           * Only snap bars that are already
-           * reasonably close vertically.
-           */
+          * Snap left edges when bars
+          * are stacked vertically.
+          */
+          const stackedVertically =
+            Math.abs(
+              (bar.y + bar.height) -
+              other.y
+            ) < SNAP_DISTANCE_Y ||
+            Math.abs(
+              (other.y + other.height) -
+              bar.y
+            ) < SNAP_DISTANCE_Y;
+
+          if (
+            stackedVertically &&
+            Math.abs(
+              bar.x - other.x
+            ) < SNAP_DISTANCE_X
+          ) {
+
+            bar.x =
+              other.x;
+
+            return;
+          }
+
+          if (
+            stackedVertically &&
+            Math.abs(
+              (bar.x + bar.widthPixels) -
+              (other.x + other.widthPixels)
+            ) < SNAP_DISTANCE_X
+          ) {
+
+            bar.x =
+              other.x +
+              other.widthPixels -
+              bar.widthPixels;
+
+            return;
+          }
+
+
+          /*
+          * Existing same-row snapping.
+          */
           if (
             Math.abs(
-              bar.y - other.y
-            ) > SNAP_DISTANCE_Y
+              bar.y -
+              other.y
+            ) >
+            SNAP_DISTANCE_Y
           ) {
             continue;
           }
-
 
           const barLeft =
             bar.x;
 
           const barRight =
-            bar.x + bar.widthPixels;
+            bar.x +
+            bar.widthPixels;
 
           const otherLeft =
             other.x;
 
           const otherRight =
-            other.x + other.widthPixels;
+            other.x +
+            other.widthPixels;
 
 
           /*
-           * Left edge of dragged bar
-           * snaps to right edge of other bar.
+           * Left edge to
+           * other right edge.
            */
           if (
             Math.abs(
-              barLeft - otherRight
-            ) < SNAP_DISTANCE_X
+              barLeft -
+              otherRight
+            ) <
+            SNAP_DISTANCE_X
           ) {
+
             bar.x =
               otherRight;
 
@@ -98,14 +195,17 @@ function StackingBarsContents() {
 
 
           /*
-           * Right edge of dragged bar
-           * snaps to left edge of other bar.
+           * Right edge to
+           * other left edge.
            */
           if (
             Math.abs(
-              barRight - otherLeft
-            ) < SNAP_DISTANCE_X
+              barRight -
+              otherLeft
+            ) <
+            SNAP_DISTANCE_X
           ) {
+
             bar.x =
               otherLeft -
               bar.widthPixels;
@@ -118,13 +218,16 @@ function StackingBarsContents() {
 
 
           /*
-           * Left edges line up.
+           * Left edges.
            */
           if (
             Math.abs(
-              barLeft - otherLeft
-            ) < SNAP_DISTANCE_X
+              barLeft -
+              otherLeft
+            ) <
+            SNAP_DISTANCE_X
           ) {
+
             bar.x =
               otherLeft;
 
@@ -136,13 +239,16 @@ function StackingBarsContents() {
 
 
           /*
-           * Right edges line up.
+           * Right edges.
            */
           if (
             Math.abs(
-              barRight - otherRight
-            ) < SNAP_DISTANCE_X
+              barRight -
+              otherRight
+            ) <
+            SNAP_DISTANCE_X
           ) {
+
             bar.x =
               otherRight -
               bar.widthPixels;
@@ -156,10 +262,38 @@ function StackingBarsContents() {
       };
 
 
+      /*
+       * Target bar
+       */
+      const target =
+        new HorizontalBar2D({
+          lengthCm: 14,
+
+          showLength: true,
+
+          position: {
+            x: 100,
+            y: 500,
+          },
+
+          draggable: false,
+
+          pixelsPerCm:
+            PIXELS_PER_CM,
+        });
+
+
+      /*
+       * Create a draggable copy
+       * when a source bar is in
+       * unlimited-supply mode.
+       */
       const createDraggableCopy = (
-        source: HorizontalBar2D,
-        event: FederatedPointerEvent,
-        target: HorizontalBar2D
+        source:
+          HorizontalBar2D,
+
+        event:
+          FederatedPointerEvent
       ) => {
 
         const copy =
@@ -168,7 +302,7 @@ function StackingBarsContents() {
               source.lengthCm,
 
             showLength:
-              true,
+              source.showLength,
 
             position: {
               x: source.x,
@@ -178,6 +312,9 @@ function StackingBarsContents() {
             draggable:
               true,
 
+            dragBehavior:
+              "move",
+
             pixelsPerCm:
               PIXELS_PER_CM,
           });
@@ -185,6 +322,7 @@ function StackingBarsContents() {
 
         copy.onDropped =
           () => {
+
             snapBar(
               copy,
               target
@@ -207,213 +345,341 @@ function StackingBarsContents() {
 
 
       /*
-       * Target bar
+       * Bar A
        */
-      const target =
+      const barA =
         new HorizontalBar2D({
-          lengthCm:
-            14,
+          lengthCm: 3,
 
-          showLength:
-            true,
+          showLength: true,
 
           position: {
             x: 100,
-            y: 500,
+            y: 250,
           },
 
-          draggable:
-            false,
+          draggable: true,
+
+          dragBehavior:
+            "clone",
 
           pixelsPerCm:
             PIXELS_PER_CM,
+
+          onCloneRequested:
+            (
+              source,
+              event
+            ) => {
+
+              createDraggableCopy(
+                source,
+                event
+              );
+            },
         });
 
 
       /*
-       * Source bar A
+       * Bar B
        */
-      let barA:
-        HorizontalBar2D;
-
-      barA =
+      const barB =
         new HorizontalBar2D({
-          lengthCm:
+          lengthCm: 5,
+
+          showLength: true,
+
+          position: {
+            x: 550,
+            y: 250,
+          },
+
+          draggable: true,
+
+          dragBehavior:
+            "clone",
+
+          pixelsPerCm:
+            PIXELS_PER_CM,
+
+          onCloneRequested:
+            (
+              source,
+              event
+            ) => {
+
+              createDraggableCopy(
+                source,
+                event
+              );
+            },
+        });
+
+
+      sourceBars.push(
+        barA,
+        barB
+      );
+
+
+      /*
+       * If unlimited supply is
+       * turned off, the original
+       * bar itself moves and can snap.
+       */
+      barA.onDropped =
+        () => {
+
+          snapBar(
+            barA,
+            target
+          );
+        };
+
+
+      barB.onDropped =
+        () => {
+
+          snapBar(
+            barB,
+            target
+          );
+        };
+
+
+      /*
+       * Bar A control
+       */
+      const barAControl =
+        new HorizontalBarControl({
+          label:
+            "Bar A",
+
+          min:
+            2,
+
+          max:
+            7,
+
+          value:
             3,
 
-          showLength:
+          unlimitedSupply:
             true,
-
-          position: {
-            x: 100,
-            y: 150,
-          },
-
-          draggable:
-            false,
-
-          pixelsPerCm:
-            PIXELS_PER_CM,
-
-          onGrabbed:
-            (event) => {
-              createDraggableCopy(
-                barA,
-                event,
-                target
-              );
-            },
-        });
-
-
-      /*
-       * Source bar B
-       */
-      let barB:
-        HorizontalBar2D;
-
-      barB =
-        new HorizontalBar2D({
-          lengthCm:
-            5,
-
-          showLength:
-            true,
-
-          position: {
-            x: 350,
-            y: 150,
-          },
-
-          draggable:
-            false,
-
-          pixelsPerCm:
-            PIXELS_PER_CM,
-
-          onGrabbed:
-            (event) => {
-              createDraggableCopy(
-                barB,
-                event,
-                target
-              );
-            },
-        });
-
-
-      /*
-       * Controls
-       */
-      const controls =
-        new TextControls2D({
-          fields: [
-            {
-              name:
-                "barA",
-
-              label:
-                "Bar A",
-
-              value:
-                3,
-            },
-
-            {
-              name:
-                "barB",
-
-              label:
-                "Bar B",
-
-              value:
-                5,
-            },
-
-            {
-              name:
-                "target",
-
-              label:
-                "Target",
-
-              value:
-                14,
-            },
-          ],
-
-          buttonText:
-            "Reset Lengths",
 
           position: {
             x: 40,
-            y: 40,
+            y: 30,
           },
 
-          onButtonClick:
-            (controls) => {
+          onValueChanged:
+            (value) => {
 
-              /*
-               * Remove all generated bars.
-               */
-              for (
-                const copy
-                of copies
-              ) {
-                experiment.remove(
-                  copy
-                );
-
-                copy.destroy();
-              }
-
-              copies.length =
-                0;
-
-
-              const lengthA =
-                controls.getValue(
-                  "barA"
-                );
-
-              const lengthB =
-                controls.getValue(
-                  "barB"
-                );
-
-              const targetLength =
-                controls.getValue(
-                  "target"
-                );
+              clearCopies();
 
 
               if (
-                lengthA <= 0 ||
-                lengthB <= 0 ||
-                targetLength <= 0
+                value <= 1
               ) {
-                return;
+
+                barA.setLengthCm(
+                  randomInteger(
+                    2,
+                    7
+                  )
+                );
+
+                barA.setShowLength(
+                  false
+                );
+
+              } else {
+
+                barA.setLengthCm(
+                  value
+                );
+
+                barA.setShowLength(
+                  true
+                );
               }
+            },
 
+          onUnlimitedSupplyChanged:
+            (
+              unlimited
+            ) => {
 
-              barA.setLengthCm(
-                lengthA
-              );
-
-              barB.setLengthCm(
-                lengthB
-              );
-
-              target.setLengthCm(
-                targetLength
+              barA.setDragBehavior(
+                unlimited
+                  ? "clone"
+                  : "move"
               );
             },
         });
 
 
+      /*
+       * Bar B control
+       */
+      const barBControl =
+        new HorizontalBarControl({
+          label:
+            "Bar B",
+
+          min:
+            2,
+
+          max:
+            7,
+
+          value:
+            5,
+
+          unlimitedSupply:
+            true,
+
+          position: {
+            x: 40,
+            y: 90,
+          },
+
+          onValueChanged:
+            (value) => {
+
+              clearCopies();
+
+
+              if (
+                value <= 1
+              ) {
+
+                barB.setLengthCm(
+                  randomInteger(
+                    2,
+                    7
+                  )
+                );
+
+                barB.setShowLength(
+                  false
+                );
+
+              } else {
+
+                barB.setLengthCm(
+                  value
+                );
+
+                barB.setShowLength(
+                  true
+                );
+              }
+            },
+
+          onUnlimitedSupplyChanged:
+            (
+              unlimited
+            ) => {
+
+              barB.setDragBehavior(
+                unlimited
+                  ? "clone"
+                  : "move"
+              );
+            },
+        });
+
+
+      /*
+       * Target control
+       *
+       * No unlimited-supply
+       * checkbox because target
+       * cannot be dragged.
+       */
+      const targetControl =
+        new HorizontalBarControl({
+          label:
+            "Target",
+
+          min:
+            2,
+
+          max:
+            30,
+
+          value:
+            14,
+
+          showUnlimitedSupply:
+            false,
+
+          position: {
+            x: 40,
+            y: 150,
+          },
+
+          onValueChanged:
+            (value) => {
+
+              clearCopies();
+
+
+              if (
+                value <= 1
+              ) {
+
+                target.setLengthCm(
+                  randomInteger(
+                    1,
+                    30
+                  )
+                );
+
+                target.setShowLength(
+                  false
+                );
+
+              } else {
+
+                target.setLengthCm(
+                  value
+                );
+
+                target.setShowLength(
+                  true
+                );
+              }
+            },
+        });
+
+      const ruler =
+        new Ruler2D(
+          0.1,
+          {
+            x: 1200,
+            y: 500,
+          },
+          PIXELS_PER_CM * 100, // pixels per meter
+          "vertical"
+        );
+
+      experiment.add(ruler);
+
+
       experiment.add(
-        controls
+        barAControl
       );
+
+      experiment.add(
+        barBControl
+      );
+
+      experiment.add(
+        targetControl
+      );
+
 
       experiment.add(
         barA

@@ -3,39 +3,50 @@ import './App.css'
 
 import BouncingBall from './components/Labs/BouncingBall'
 import StackingBars from './components/Labs/StackingBars'
+import ProtractorAndRulers from './components/Labs/ProtractorAndRulers'
+import Geometry from './components/Labs/Geometry'
 
-type Page = 'menu' | 'bouncingBall' | 'StackingBars'
+
+const experiments = [
+  {
+    name: 'Bouncing Ball',
+    component: BouncingBall,
+  },
+  {
+    name: 'Stacking Bars',
+    component: StackingBars,
+  },
+  {
+    name: 'Protractor And Rulers',
+    component: ProtractorAndRulers,
+  },
+  {
+    name: 'Geometry',
+    component: Geometry,
+  },
+]
+
 
 function App() {
-  const [page, setPage] = useState<Page>('menu')
+  const [selectedExperiment, setSelectedExperiment] = useState<number | null>(null)
 
-  if (page === 'bouncingBall') {
+
+  if (selectedExperiment !== null) {
+    const Experiment = experiments[selectedExperiment].component
+
     return (
       <>
         <div style={{ padding: '10px' }}>
-          <button onClick={() => setPage('menu')}>
+          <button onClick={() => setSelectedExperiment(null)}>
             ← Back to Menu
           </button>
         </div>
 
-        <BouncingBall />
+        <Experiment />
       </>
     )
   }
 
-  if (page === 'StackingBars') {
-    return (
-      <>
-        <div style={{ padding: '10px' }}>
-          <button onClick={() => setPage('menu')}>
-            ← Back to Menu
-          </button>
-        </div>
-
-        <StackingBars />
-      </>
-    )
-  }
 
   return (
     <div style={{ padding: '30px' }}>
@@ -51,13 +62,14 @@ function App() {
           width: '250px',
         }}
       >
-        <button onClick={() => setPage('bouncingBall')}>
-          Bouncing Ball
-        </button>
-
-        <button onClick={() => setPage('StackingBars')}>
-          Stacking Bars
-        </button>
+        {experiments.map((experiment, index) => (
+          <button
+            key={experiment.name}
+            onClick={() => setSelectedExperiment(index)}
+          >
+            {experiment.name}
+          </button>
+        ))}
       </div>
     </div>
   )
