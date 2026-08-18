@@ -1,0 +1,549 @@
+import {
+  Container,
+  Graphics,
+  Text,
+  FederatedPointerEvent,
+} from "pixi.js";
+
+
+type Point2D = {
+  x: number;
+  y: number;
+};
+
+
+type WeightDragMode =
+  | "move"
+  | "stretch";
+
+
+type Weight2DOptions = {
+  id: string;
+
+  position: Point2D;
+
+  mass: number;
+
+  size?: number;
+};
+
+
+export class Weight2D extends Container {
+
+  public readonly id: string;
+
+  public readonly mass: number;
+
+
+  private weightSize:
+    number;
+
+
+  private weightGraphics:
+    Graphics;
+
+  private massLabel:
+    Text;
+
+
+  private dragging =
+    false;
+
+
+  private dragMode:
+    WeightDragMode =
+      "move";
+
+
+  private dragOffsetX = 0;
+  private dragOffsetY = 0;
+
+
+  //
+  // Returning false means:
+  // do NOT begin visual dragging.
+  //
+
+  private onMoveDragStartCallback?:
+    () => boolean | void;
+
+
+  private onMoveDragEndCallback?:
+    () => void;
+
+
+  private onStretchMoveCallback?:
+    (point: Point2D) => void;
+
+
+  private onStretchEndCallback?:
+    () => void;
+
+
+  private onRightClickCallback?:
+    () => void;
+
+
+  constructor(
+    options: Weight2DOptions,
+  ) {
+
+    super();
+
+
+    this.id =
+      options.id;
+
+
+    this.mass =
+      options.mass;
+
+
+    this.weightSize =
+      options.size ?? 50;
+
+
+    this.position.set(
+      options.position.x,
+      options.position.y,
+    );
+
+
+    this.weightGraphics =
+      new Graphics();
+
+
+    this.addChild(
+      this.weightGraphics,
+    );
+
+
+    this.massLabel =
+      new Text({
+
+        text:
+          `${this.mass} kg`,
+
+        style: {
+          fontSize: 14,
+          fill: 0x000000,
+        },
+      });
+
+
+    this.massLabel.anchor.set(
+      0.5,
+    );
+
+
+    this.massLabel.position.set(
+      this.weightSize / 2,
+      this.weightSize / 2,
+    );
+
+
+    this.addChild(
+      this.massLabel,
+    );
+
+
+    this.draw();
+
+
+    this.eventMode =
+      "static";
+
+
+    this.cursor =
+      "grab";
+
+
+    this.on(
+      "pointerdown",
+      this.onPointerDown,
+    );
+
+
+    this.on(
+      "globalpointermove",
+      this.onPointerMove,
+    );
+
+
+    this.on(
+      "pointerup",
+      this.onPointerUp,
+    );
+
+
+    this.on(
+      "pointerupoutside",
+      this.onPointerUp,
+    );
+  }
+
+
+  private draw() {
+
+    this.weightGraphics.clear();
+
+
+    this.weightGraphics.rect(
+      0,
+      0,
+      this.weightSize,
+      this.weightSize,
+    );
+
+
+    this.weightGraphics.fill(
+      0xb0b0b0,
+    );
+
+
+    this.weightGraphics.stroke({
+      width: 2,
+      color: 0x333333,
+    });
+  }
+
+
+  private onPointerDown =
+    (
+      event:
+        FederatedPointerEvent,
+    ) => {
+
+      //
+      // Right click itself does not
+      // drag anything.
+      //
+
+      if (
+        event.button === 2
+      ) {
+
+        event.preventDefault();
+
+
+        this.onRightClickCallback?.();
+
+
+        return;
+      }
+
+
+      if (
+        event.button !== 0
+      ) {
+
+        return;
+      }
+
+
+      if (!this.parent) {
+        return;
+      }
+
+
+      //
+      // MOVE MODE
+      //
+
+      if (
+        this.dragMode ===
+        "move"
+      ) {
+
+        const allowDrag =
+          this.onMoveDragStartCallback?.();
+
+
+        if (
+          allowDrag === false
+        ) {
+
+          return;
+        }
+
+
+        this.dragging =
+          true;
+
+
+        this.cursor =
+          "grabbing";
+
+
+        const parentPosition =
+          this.parent.toLocal(
+            event.global,
+          );
+
+
+        this.dragOffsetX =
+          parentPosition.x -
+          this.x;
+
+
+        this.dragOffsetY =
+          parentPosition.y -
+          this.y;
+
+
+        return;
+      }
+
+
+      //
+      // STRETCH MODE
+      //
+
+      this.dragging =
+        true;
+
+
+      this.cursor =
+        "grabbing";
+
+
+      this.onStretchMoveCallback?.({
+        x: event.global.x,
+        y: event.global.y,
+      });
+    };
+
+
+  private onPointerMove =
+    (
+      event:
+        FederatedPointerEvent,
+    ) => {
+
+      if (!this.dragging) {
+        return;
+      }
+
+
+      //
+      // Attached weight:
+      // manipulate physics chain.
+      //
+
+      if (
+        this.dragMode ===
+        "stretch"
+      ) {
+
+        this.onStretchMoveCallback?.({
+          x: event.global.x,
+          y: event.global.y,
+        });
+
+
+        return;
+      }
+
+
+      //
+      // Loose/detached weight:
+      // ordinary visual movement.
+      //
+
+      if (!this.parent) {
+        return;
+      }
+
+
+      const parentPosition =
+        this.parent.toLocal(
+          event.global,
+        );
+
+
+      this.position.set(
+
+        parentPosition.x -
+          this.dragOffsetX,
+
+        parentPosition.y -
+          this.dragOffsetY,
+      );
+    };
+
+
+  private onPointerUp = () => {
+
+    if (!this.dragging) {
+      return;
+    }
+
+
+    this.dragging =
+      false;
+
+
+    this.cursor =
+      "grab";
+
+
+    if (
+      this.dragMode ===
+      "stretch"
+    ) {
+
+      this.onStretchEndCallback?.();
+
+
+      return;
+    }
+
+
+    this.onMoveDragEndCallback?.();
+  };
+
+
+  public setDragMode(
+    mode: WeightDragMode,
+  ) {
+
+    this.dragMode =
+      mode;
+  }
+
+
+  public setOnMoveDragStart(
+    callback:
+      () => boolean | void,
+  ) {
+
+    this.onMoveDragStartCallback =
+      callback;
+  }
+
+
+  public setOnMoveDragEnd(
+    callback:
+      () => void,
+  ) {
+
+    this.onMoveDragEndCallback =
+      callback;
+  }
+
+
+  public setOnStretchMove(
+    callback:
+      (point: Point2D) => void,
+  ) {
+
+    this.onStretchMoveCallback =
+      callback;
+  }
+
+
+  public setOnStretchEnd(
+    callback:
+      () => void,
+  ) {
+
+    this.onStretchEndCallback =
+      callback;
+  }
+
+
+  public setOnRightClick(
+    callback:
+      () => void,
+  ) {
+
+    this.onRightClickCallback =
+      callback;
+  }
+
+
+  public setPosition(
+    x: number,
+    y: number,
+  ) {
+
+    this.position.set(
+      x,
+      y,
+    );
+  }
+
+
+  public getCenterPosition() {
+
+    return {
+      x:
+        this.x +
+        this.weightSize / 2,
+
+      y:
+        this.y +
+        this.weightSize / 2,
+    };
+  }
+
+
+  public getTopAttachmentPosition() {
+
+    return {
+      x:
+        this.x +
+        this.weightSize / 2,
+
+      y:
+        this.y,
+    };
+  }
+
+
+  public getBottomAttachmentPosition() {
+
+    return {
+      x:
+        this.x +
+        this.weightSize / 2,
+
+      y:
+        this.y +
+        this.weightSize,
+    };
+  }
+
+
+  public getLeftAttachmentPosition() {
+
+    return {
+      x:
+        this.x,
+
+      y:
+        this.y +
+        this.weightSize / 2,
+    };
+  }
+
+
+  public getRightAttachmentPosition() {
+
+    return {
+      x:
+        this.x +
+        this.weightSize,
+
+      y:
+        this.y +
+        this.weightSize / 2,
+    };
+  }
+
+
+  public getWeightSize() {
+
+    return this.weightSize;
+  }
+}

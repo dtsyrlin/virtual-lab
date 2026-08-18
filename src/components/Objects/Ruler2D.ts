@@ -411,54 +411,72 @@ export class Ruler2D extends Container {
   // ==================================================
   // DRAGGING
   // ==================================================
+private handlePointerDown(
+  event: FederatedPointerEvent
+): void {
 
-  private handlePointerDown(
-    event: FederatedPointerEvent
-  ): void {
-    /*
-     * Left mouse button only.
-     */
-    if (
-      event.button !== 0
-    ) {
-      return;
-    }
-
-    if (
-      this.isRotating
-    ) {
-      return;
-    }
-
-    if (
-      this.parent === null
-    ) {
-      return;
-    }
-
-    this.isDragging =
-      true;
-
-    this.cursor =
-      "grabbing";
-
-    const pointerPosition =
-      event.getLocalPosition(
-        this.parent
-      );
-
-    /*
-     * Preserve where on the ruler the
-     * user grabbed it.
-     */
-    this.dragOffsetX =
-      pointerPosition.x -
-      this.position.x;
-
-    this.dragOffsetY =
-      pointerPosition.y -
-      this.position.y;
+  /*
+   * Left mouse button only.
+   */
+  if (
+    event.button !== 0
+  ) {
+    return;
   }
+
+
+  /*
+   * The ruler is an independent
+   * measuring tool.
+   *
+   * Using it must NOT trigger the
+   * experiment's global left-click
+   * behavior.
+   */
+  event.stopPropagation();
+
+
+  if (
+    this.isRotating
+  ) {
+    return;
+  }
+
+
+  if (
+    this.parent === null
+  ) {
+    return;
+  }
+
+
+  this.isDragging =
+    true;
+
+
+  this.cursor =
+    "grabbing";
+
+
+  const pointerPosition =
+    event.getLocalPosition(
+      this.parent
+    );
+
+
+  /*
+   * Preserve where on the ruler the
+   * user grabbed it.
+   */
+  this.dragOffsetX =
+    pointerPosition.x -
+    this.position.x;
+
+
+  this.dragOffsetY =
+    pointerPosition.y -
+    this.position.y;
+}
 
   private moveWithPointer(
     event: FederatedPointerEvent

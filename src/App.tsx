@@ -5,6 +5,7 @@ import BouncingBall from './components/Labs/BouncingBall'
 import StackingBars from './components/Labs/StackingBars'
 import ProtractorAndRulers from './components/Labs/ProtractorAndRulers'
 import Geometry from './components/Labs/Geometry'
+import HooksLaw from './components/Labs/HooksLaw'
 
 
 const experiments = [
@@ -24,6 +25,10 @@ const experiments = [
     name: 'Geometry',
     component: Geometry,
   },
+  {
+    name: 'Hooks Law',
+    component: HooksLaw,
+  },  
 ]
 
 
