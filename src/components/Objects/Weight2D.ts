@@ -366,7 +366,28 @@ export class Weight2D extends Container {
 
       // =================================================
       // LEFT DRAG: STRETCH MODE
+      //
+      // Preserve the point inside the
+      // weight where the user grabbed it.
+      // This prevents the weight from
+      // jumping on pointer-down.
       // =================================================
+
+      const parentPosition =
+        this.parent.toLocal(
+          event.global,
+        );
+
+
+      this.dragOffsetX =
+        parentPosition.x -
+        this.x;
+
+
+      this.dragOffsetY =
+        parentPosition.y -
+        this.y;
+
 
       this.dragging =
         true;
@@ -377,8 +398,13 @@ export class Weight2D extends Container {
 
 
       this.onStretchMoveCallback?.({
-        x: event.global.x,
-        y: event.global.y,
+        x:
+          event.global.x -
+          this.dragOffsetX,
+
+        y:
+          event.global.y -
+          this.dragOffsetY,
       });
     };
 
@@ -407,8 +433,13 @@ export class Weight2D extends Container {
       ) {
 
         this.onStretchMoveCallback?.({
-          x: event.global.x,
-          y: event.global.y,
+          x:
+            event.global.x -
+            this.dragOffsetX,
+
+          y:
+            event.global.y -
+            this.dragOffsetY,
         });
 
 
