@@ -1092,6 +1092,18 @@ function HooksLawContents() {
               tryAttachWeight(
                 weight,
               );
+
+
+              //
+              // Resume dynamics from the
+              // current spring geometry.
+              //
+              // SpringPhysics.start()
+              // resets all velocities and
+              // accelerations to zero.
+              //
+
+              physics.start();
             },
           );
 
@@ -1196,6 +1208,17 @@ function HooksLawContents() {
                       PIXELS_PER_METER,
                 },
               );
+
+
+              //
+              // Continue the remaining
+              // system from its current
+              // spring compression /
+              // extension, but with all
+              // velocities reset to zero.
+              //
+
+              physics.start();
             },
           );
         };
