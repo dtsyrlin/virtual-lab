@@ -132,6 +132,19 @@ export class SpringPhysics {
     false;
 
 
+  //
+  // Damping is only active for weights
+  // currently under the mouse.
+  //
+
+  private dampedWeightIds =
+    new Set<string>();
+
+
+  private dampingCoefficient =
+    5;
+
+
 
   // =====================================================
   // Registration
@@ -2048,6 +2061,32 @@ manuallyMoveAnchor(
 
 
   // =====================================================
+  // Damping
+  // =====================================================
+
+
+  setWeightDampingActive(
+    weightId: string,
+    active: boolean,
+  ) {
+
+    if (active) {
+
+      this.dampedWeightIds.add(
+        weightId,
+      );
+
+    } else {
+
+      this.dampedWeightIds.delete(
+        weightId,
+      );
+    }
+  }
+
+
+
+  // =====================================================
   // Dynamics
   // =====================================================
 
@@ -2284,19 +2323,43 @@ manuallyMoveAnchor(
       }
 
 
-      const force =
+      let force =
         forces.get(
           group.id,
         ) ?? 0;
 
 
+      const firstWeight =
+        group.weights[0];
+
+
+      //
+      // If the mouse is currently over
+      // any weight in this rigid group,
+      // add a force opposite the group's
+      // current velocity.
+      //
+
+      const dampingActive =
+        group.weights.some(
+          weight =>
+            this.dampedWeightIds.has(
+              weight.id,
+            ),
+        );
+
+
+      if (dampingActive) {
+
+        force +=
+          -this.dampingCoefficient *
+          firstWeight.velocity;
+      }
+
+
       const acceleration =
         force /
         mass;
-
-
-      const firstWeight =
-        group.weights[0];
 
 
       firstWeight.velocity +=

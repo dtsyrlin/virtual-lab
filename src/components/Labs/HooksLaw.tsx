@@ -106,6 +106,13 @@ function HooksLawContents() {
     useRef(1);
 
 
+  const pointerPositionRef =
+    useRef<{
+      x: number;
+      y: number;
+    } | null>(null);
+
+
 
   // =====================================================
   // Helpers
@@ -493,6 +500,52 @@ const onPointerDown =
     }
   };
 
+    const canvas =
+      app.canvas;
+
+
+    const onCanvasPointerMove =
+      (event: PointerEvent) => {
+
+        const rect =
+          canvas.getBoundingClientRect();
+
+
+        pointerPositionRef.current = {
+
+          x:
+            (event.clientX - rect.left) *
+            app.screen.width /
+            rect.width,
+
+          y:
+            (event.clientY - rect.top) *
+            app.screen.height /
+            rect.height,
+        };
+      };
+
+
+    const onCanvasPointerLeave =
+      () => {
+
+        pointerPositionRef.current =
+          null;
+      };
+
+
+    canvas.addEventListener(
+      "pointermove",
+      onCanvasPointerMove,
+    );
+
+
+    canvas.addEventListener(
+      "pointerleave",
+      onCanvasPointerLeave,
+    );
+
+
     app.stage.eventMode =
       "static";
 
@@ -508,6 +561,18 @@ const onPointerDown =
 
 
     return () => {
+
+      canvas.removeEventListener(
+        "pointermove",
+        onCanvasPointerMove,
+      );
+
+
+      canvas.removeEventListener(
+        "pointerleave",
+        onCanvasPointerLeave,
+      );
+
 
       app.stage.off(
         "pointerdown",
@@ -1775,7 +1840,48 @@ const onPointerDown =
         return;
       }
 
-      physics.move( deltaTime);
+
+      const pointer =
+        pointerPositionRef.current;
+
+
+      for (
+        const [
+          id,
+          weight,
+        ] of
+        weightRefs.current
+      ) {
+
+        let dampingActive =
+          false;
+
+
+        if (pointer) {
+
+          const size =
+            weight.getWeightSize();
+
+
+          dampingActive =
+            pointer.x >= weight.x &&
+            pointer.x <= weight.x + size &&
+            pointer.y >= weight.y &&
+            pointer.y <= weight.y + size;
+        }
+
+
+        physics.setWeightDampingActive(
+          id,
+          dampingActive,
+        );
+      }
+
+
+      physics.move(
+        deltaTime,
+      );
+
 
       renderChain();
     },
