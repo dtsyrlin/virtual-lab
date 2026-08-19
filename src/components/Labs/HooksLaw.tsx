@@ -5,10 +5,6 @@ import {
 } from "@pixi/react";
 
 import {
-  FederatedPointerEvent,
-} from "pixi.js";
-
-import {
   useEffect,
   useRef,
 } from "react";
@@ -53,11 +49,6 @@ const SNAP_DISTANCE =
   35;
 
 
-type InteractionMode =
-  | "stretch"
-  | "detach";
-
-
 
 function HooksLawContents() {
 
@@ -89,12 +80,6 @@ function HooksLawContents() {
       MovableSpringAttachment | null
     >(
       null,
-    );
-
-
-  const interactionModeRef =
-    useRef<InteractionMode>(
-      "stretch",
     );
 
 
@@ -337,168 +322,11 @@ function HooksLawContents() {
 
 
   // =====================================================
-  // Global interaction mode
+  // Pointer tracking for damping
   // =====================================================
 
 
   useEffect(() => {
-
-const onPointerDown =
-  (
-    event:
-      FederatedPointerEvent,
-  ) => {
-
-    const physics =
-      physicsRef.current;
-
-
-    if (!physics) {
-      return;
-    }
-
-
-    // =================================================
-    // LEFT CLICK
-    //
-    // Stop the current motion and
-    // enter normal physical
-    // manipulation mode.
-    //
-    // IMPORTANT:
-    // We DO NOT reset spring lengths
-    // and we DO NOT move the right
-    // anchor.
-    // =================================================
-
-    if (
-      event.button === 0
-    ) {
-
-      interactionModeRef.current =
-        "stretch";
-
-
-      physics.stop();
-
-
-      //
-      // Every attached weight becomes
-      // a stretch/compress handle.
-      //
-
-      for (
-        const item of
-        physics.getChain()
-      ) {
-
-        if (
-          item.type ===
-          "weight"
-        ) {
-
-          weightRefs.current
-            .get(item.id)
-            ?.setDragMode(
-              "stretch",
-            );
-        }
-      }
-
-
-      //
-      // If the right anchor is attached,
-      // left-dragging it also means
-      // stretch/compress.
-      //
-
-      if (
-        isRightAnchorAttached()
-      ) {
-
-        rightAttachmentRef.current
-          ?.setDragMode(
-            "stretch",
-          );
-      }
-
-
-      return;
-    }
-
-
-    // =================================================
-    // RIGHT CLICK
-    //
-    // Stop simulation and enter
-    // rearrangement / detachment mode.
-    //
-    // This is the ONE special case
-    // where we allow the right anchor
-    // to move automatically:
-    //
-    // all springs return to natural
-    // lengths, and the anchor moves to
-    // wherever that natural-length
-    // configuration places it.
-    // =================================================
-
-    if (
-      event.button === 2
-    ) {
-
-      interactionModeRef.current =
-        "detach";
-
-
-      physics.resetChainToNaturalLengths(
-        true,
-      );
-
-
-      renderChain();
-
-
-      //
-      // Attached weights now become
-      // ordinary move/detach objects.
-      //
-
-      for (
-        const item of
-        physics.getChain()
-      ) {
-
-        if (
-          item.type ===
-          "weight"
-        ) {
-
-          weightRefs.current
-            .get(item.id)
-            ?.setDragMode(
-              "move",
-            );
-        }
-      }
-
-
-      //
-      // Right anchor also becomes
-      // movable/detachable.
-      //
-
-      if (
-        isRightAnchorAttached()
-      ) {
-
-        rightAttachmentRef.current
-          ?.setDragMode(
-            "move",
-          );
-      }
-    }
-  };
 
     const canvas =
       app.canvas;
@@ -546,20 +374,6 @@ const onPointerDown =
     );
 
 
-    app.stage.eventMode =
-      "static";
-
-
-    app.stage.hitArea =
-      app.screen;
-
-
-    app.stage.on(
-      "pointerdown",
-      onPointerDown,
-    );
-
-
     return () => {
 
       canvas.removeEventListener(
@@ -572,16 +386,9 @@ const onPointerDown =
         "pointerleave",
         onCanvasPointerLeave,
       );
-
-
-      app.stage.off(
-        "pointerdown",
-        onPointerDown,
-      );
     };
 
   }, [app]);
-
 
 
   // =====================================================
@@ -1185,9 +992,31 @@ const onPointerDown =
               }
 
 
+              return false;
+            },
+          );
+
+
+          spring.setOnDragEnd(
+            () => {
+
+              tryAttachSpring(
+                spring,
+              );
+            },
+          );
+
+
+          spring.setOnRightDragStart(
+            () => {
+
+              physics.stop();
+
+
               if (
-                interactionModeRef.current !==
-                "detach"
+                !isSpringAttached(
+                  spring.id,
+                )
               ) {
 
                 return false;
@@ -1203,11 +1032,21 @@ const onPointerDown =
           );
 
 
-          spring.setOnDragEnd(
+          spring.setOnRightDragEnd(
             () => {
 
-              tryAttachSpring(
-                spring,
+              physics.setSpringPosition(
+                spring.id,
+
+                {
+                  x:
+                    spring.x /
+                      PIXELS_PER_METER,
+
+                  y:
+                    spring.y /
+                      PIXELS_PER_METER,
+                },
               );
             },
           );
@@ -1242,20 +1081,7 @@ const onPointerDown =
               }
 
 
-              if (
-                interactionModeRef.current !==
-                "detach"
-              ) {
-
-                return false;
-              }
-
-
-              return physics
-                .disconnectChild(
-                  "weight",
-                  weight.id,
-                );
+              return false;
             },
           );
 
@@ -1318,8 +1144,59 @@ const onPointerDown =
           );
 
 
-          weight.setOnRightClick(
-            () => {},
+          weight.setOnRightDragStart(
+            () => {
+
+              physics.stop();
+
+
+              if (
+                !isWeightAttached(
+                  weight.id,
+                )
+              ) {
+
+                return false;
+              }
+
+
+              const detached =
+                physics.disconnectChild(
+                  "weight",
+                  weight.id,
+                );
+
+
+              if (detached) {
+
+                weight.setDragMode(
+                  "move",
+                );
+              }
+
+
+              return detached;
+            },
+          );
+
+
+          weight.setOnRightDragEnd(
+            () => {
+
+              physics.setWeightPosition(
+                weight.id,
+
+                {
+                  x:
+                    weight.x /
+                      PIXELS_PER_METER,
+
+                  y:
+                    weight.y /
+                      PIXELS_PER_METER,
+                },
+              );
+            },
           );
         };
 
@@ -1518,20 +1395,7 @@ const onPointerDown =
             }
 
 
-            if (
-              interactionModeRef.current !==
-                "detach"
-            ) {
-
-              return false;
-            }
-
-
-            return physics
-              .disconnectChild(
-                "anchor",
-                rightAttachment.id,
-              );
+            return false;
           },
         );
 
@@ -1564,6 +1428,65 @@ const onPointerDown =
             tryAttachRightAnchor();
           },
         );
+
+
+      rightAttachment
+        .setOnRightDragStart(
+          () => {
+
+            physics.stop();
+
+
+            if (
+              !isRightAnchorAttached()
+            ) {
+
+              return false;
+            }
+
+
+            const detached =
+              physics.disconnectChild(
+                "anchor",
+                rightAttachment.id,
+              );
+
+
+            if (detached) {
+
+              rightAttachment
+                .setDragMode(
+                  "move",
+                );
+            }
+
+
+            return detached;
+          },
+        );
+
+
+      rightAttachment
+        .setOnRightDragEnd(
+          () => {
+
+            physics.setAnchorPosition(
+
+              rightAttachment.id,
+
+              {
+                x:
+                  rightAttachment.x /
+                    PIXELS_PER_METER,
+
+                y:
+                  rightAttachment.y /
+                    PIXELS_PER_METER,
+              },
+            );
+          },
+        );
+
 
 
       rightAttachment

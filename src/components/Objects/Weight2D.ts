@@ -17,6 +17,11 @@ type WeightDragMode =
   | "stretch";
 
 
+type ActiveDragButton =
+  | "left"
+  | "right";
+
+
 type Weight2DOptions = {
   id: string;
 
@@ -50,6 +55,11 @@ export class Weight2D extends Container {
     false;
 
 
+  private activeDragButton:
+    ActiveDragButton | null =
+      null;
+
+
   private dragMode:
     WeightDragMode =
       "move";
@@ -80,7 +90,20 @@ export class Weight2D extends Container {
     () => void;
 
 
-  private onRightClickCallback?:
+  //
+  // Right-drag is reserved for
+  // detaching the right-most object.
+  //
+  // The lab decides whether this
+  // particular weight is allowed
+  // to detach.
+  //
+
+  private onRightDragStartCallback?:
+    () => boolean | void;
+
+
+  private onRightDragEndCallback?:
     () => void;
 
 
@@ -208,16 +231,60 @@ export class Weight2D extends Container {
   }
 
 
+  private beginMoveDrag(
+    event:
+      FederatedPointerEvent,
+  ) {
+
+    if (!this.parent) {
+      return;
+    }
+
+
+    this.dragging =
+      true;
+
+
+    this.cursor =
+      "grabbing";
+
+
+    const parentPosition =
+      this.parent.toLocal(
+        event.global,
+      );
+
+
+    this.dragOffsetX =
+      parentPosition.x -
+      this.x;
+
+
+    this.dragOffsetY =
+      parentPosition.y -
+      this.y;
+  }
+
+
   private onPointerDown =
     (
       event:
         FederatedPointerEvent,
     ) => {
 
+      if (!this.parent) {
+        return;
+      }
+
+
+      // =================================================
+      // RIGHT DRAG
       //
-      // Right click itself does not
-      // drag anything.
-      //
+      // Right-drag never stretches.
+      // It asks the lab whether this
+      // weight may detach, then moves
+      // it as an ordinary loose object.
+      // =================================================
 
       if (
         event.button === 2
@@ -226,7 +293,26 @@ export class Weight2D extends Container {
         event.preventDefault();
 
 
-        this.onRightClickCallback?.();
+        const allowDrag =
+          this.onRightDragStartCallback?.();
+
+
+        if (
+          allowDrag === false ||
+          allowDrag === undefined
+        ) {
+
+          return;
+        }
+
+
+        this.activeDragButton =
+          "right";
+
+
+        this.beginMoveDrag(
+          event,
+        );
 
 
         return;
@@ -241,14 +327,13 @@ export class Weight2D extends Container {
       }
 
 
-      if (!this.parent) {
-        return;
-      }
+      this.activeDragButton =
+        "left";
 
 
-      //
-      // MOVE MODE
-      //
+      // =================================================
+      // LEFT DRAG: MOVE MODE
+      // =================================================
 
       if (
         this.dragMode ===
@@ -263,41 +348,25 @@ export class Weight2D extends Container {
           allowDrag === false
         ) {
 
+          this.activeDragButton =
+            null;
+
           return;
         }
 
 
-        this.dragging =
-          true;
-
-
-        this.cursor =
-          "grabbing";
-
-
-        const parentPosition =
-          this.parent.toLocal(
-            event.global,
-          );
-
-
-        this.dragOffsetX =
-          parentPosition.x -
-          this.x;
-
-
-        this.dragOffsetY =
-          parentPosition.y -
-          this.y;
+        this.beginMoveDrag(
+          event,
+        );
 
 
         return;
       }
 
 
-      //
-      // STRETCH MODE
-      //
+      // =================================================
+      // LEFT DRAG: STRETCH MODE
+      // =================================================
 
       this.dragging =
         true;
@@ -326,13 +395,15 @@ export class Weight2D extends Container {
 
 
       //
-      // Attached weight:
-      // manipulate physics chain.
+      // Only LEFT drag in stretch mode
+      // manipulates the physics chain.
       //
 
       if (
+        this.activeDragButton ===
+          "left" &&
         this.dragMode ===
-        "stretch"
+          "stretch"
       ) {
 
         this.onStretchMoveCallback?.({
@@ -346,7 +417,7 @@ export class Weight2D extends Container {
 
 
       //
-      // Loose/detached weight:
+      // Loose left-drag OR right-drag:
       // ordinary visual movement.
       //
 
@@ -379,12 +450,32 @@ export class Weight2D extends Container {
     }
 
 
+    const finishedButton =
+      this.activeDragButton;
+
+
     this.dragging =
       false;
 
 
+    this.activeDragButton =
+      null;
+
+
     this.cursor =
       "grab";
+
+
+    if (
+      finishedButton ===
+        "right"
+    ) {
+
+      this.onRightDragEndCallback?.();
+
+
+      return;
+    }
 
 
     if (
@@ -452,12 +543,22 @@ export class Weight2D extends Container {
   }
 
 
-  public setOnRightClick(
+  public setOnRightDragStart(
+    callback:
+      () => boolean | void,
+  ) {
+
+    this.onRightDragStartCallback =
+      callback;
+  }
+
+
+  public setOnRightDragEnd(
     callback:
       () => void,
   ) {
 
-    this.onRightClickCallback =
+    this.onRightDragEndCallback =
       callback;
   }
 

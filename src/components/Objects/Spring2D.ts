@@ -11,6 +11,11 @@ export type SpringOrientation =
   | "vertical";
 
 
+type ActiveDragButton =
+  | "left"
+  | "right";
+
+
 type Spring2DOptions = {
   id: string;
 
@@ -49,6 +54,11 @@ export class Spring2D extends Container {
 
   private dragging = false;
 
+  private activeDragButton:
+    ActiveDragButton | null =
+      null;
+
+
   private dragOffsetX = 0;
   private dragOffsetY = 0;
 
@@ -57,6 +67,13 @@ export class Spring2D extends Container {
     () => boolean | void;
 
   private onDragEndCallback?:
+    () => void;
+
+
+  private onRightDragStartCallback?:
+    () => boolean | void;
+
+  private onRightDragEndCallback?:
     () => void;
 
 
@@ -429,11 +446,91 @@ export class Spring2D extends Container {
   }
 
 
+  private beginMoveDrag(
+    event:
+      FederatedPointerEvent,
+  ) {
+
+    if (!this.parent) {
+      return;
+    }
+
+
+    this.dragging =
+      true;
+
+
+    this.cursor =
+      "grabbing";
+
+
+    const parentPosition =
+      this.parent.toLocal(
+        event.global,
+      );
+
+
+    this.dragOffsetX =
+      parentPosition.x -
+      this.x;
+
+
+    this.dragOffsetY =
+      parentPosition.y -
+      this.y;
+  }
+
+
   private onPointerDown =
     (
       event:
         FederatedPointerEvent,
     ) => {
+
+      if (!this.parent) {
+        return;
+      }
+
+
+      // =================================================
+      // RIGHT DRAG
+      //
+      // Reserved for detaching the
+      // right-most spring.
+      // =================================================
+
+      if (
+        event.button === 2
+      ) {
+
+        event.preventDefault();
+
+
+        const allowDrag =
+          this.onRightDragStartCallback?.();
+
+
+        if (
+          allowDrag === false ||
+          allowDrag === undefined
+        ) {
+
+          return;
+        }
+
+
+        this.activeDragButton =
+          "right";
+
+
+        this.beginMoveDrag(
+          event,
+        );
+
+
+        return;
+      }
+
 
       if (
         event.button !== 0
@@ -442,9 +539,8 @@ export class Spring2D extends Container {
       }
 
 
-      if (!this.parent) {
-        return;
-      }
+      this.activeDragButton =
+        "left";
 
 
       const allowDrag =
@@ -454,32 +550,17 @@ export class Spring2D extends Container {
       if (
         allowDrag === false
       ) {
+
+        this.activeDragButton =
+          null;
+
         return;
       }
 
 
-      this.dragging =
-        true;
-
-
-      this.cursor =
-        "grabbing";
-
-
-      const parentPosition =
-        this.parent.toLocal(
-          event.global,
-        );
-
-
-      this.dragOffsetX =
-        parentPosition.x -
-        this.x;
-
-
-      this.dragOffsetY =
-        parentPosition.y -
-        this.y;
+      this.beginMoveDrag(
+        event,
+      );
     };
 
 
@@ -523,12 +604,32 @@ export class Spring2D extends Container {
     }
 
 
+    const finishedButton =
+      this.activeDragButton;
+
+
     this.dragging =
       false;
 
 
+    this.activeDragButton =
+      null;
+
+
     this.cursor =
       "grab";
+
+
+    if (
+      finishedButton ===
+        "right"
+    ) {
+
+      this.onRightDragEndCallback?.();
+
+
+      return;
+    }
 
 
     this.onDragEndCallback?.();
@@ -551,6 +652,26 @@ export class Spring2D extends Container {
   ) {
 
     this.onDragEndCallback =
+      callback;
+  }
+
+
+  public setOnRightDragStart(
+    callback:
+      () => boolean | void,
+  ) {
+
+    this.onRightDragStartCallback =
+      callback;
+  }
+
+
+  public setOnRightDragEnd(
+    callback:
+      () => void,
+  ) {
+
+    this.onRightDragEndCallback =
       callback;
   }
 

@@ -16,6 +16,11 @@ type DragMode =
   | "stretch";
 
 
+type ActiveDragButton =
+  | "left"
+  | "right";
+
+
 type MovableSpringAttachmentOptions = {
 
   id: string;
@@ -54,6 +59,11 @@ export class MovableSpringAttachment
     false;
 
 
+  private activeDragButton:
+    ActiveDragButton | null =
+      null;
+
+
   private dragMode:
     DragMode =
       "move";
@@ -81,6 +91,14 @@ export class MovableSpringAttachment
 
 
   private onStretchEndCallback?:
+    () => void;
+
+
+  private onRightDragStartCallback?:
+    () => boolean | void;
+
+
+  private onRightDragEndCallback?:
     () => void;
 
 
@@ -206,11 +224,86 @@ export class MovableSpringAttachment
   }
 
 
+  private beginMoveDrag(
+    event:
+      FederatedPointerEvent,
+  ) {
+
+    if (!this.parent) {
+      return;
+    }
+
+
+    this.dragging =
+      true;
+
+
+    this.cursor =
+      "grabbing";
+
+
+    const parentPosition =
+      this.parent.toLocal(
+        event.global,
+      );
+
+
+    this.dragOffsetX =
+      parentPosition.x -
+      this.x;
+  }
+
+
   private onPointerDown =
     (
       event:
         FederatedPointerEvent,
     ) => {
+
+      if (!this.parent) {
+        return;
+      }
+
+
+      // =================================================
+      // RIGHT DRAG
+      //
+      // Reserved for detaching the
+      // right-most attached support.
+      // =================================================
+
+      if (
+        event.button === 2
+      ) {
+
+        event.preventDefault();
+
+
+        const allowDrag =
+          this.onRightDragStartCallback?.();
+
+
+        if (
+          allowDrag === false ||
+          allowDrag === undefined
+        ) {
+
+          return;
+        }
+
+
+        this.activeDragButton =
+          "right";
+
+
+        this.beginMoveDrag(
+          event,
+        );
+
+
+        return;
+      }
+
 
       if (
         event.button !== 0
@@ -219,13 +312,13 @@ export class MovableSpringAttachment
       }
 
 
-      if (!this.parent) {
-        return;
-      }
+      this.activeDragButton =
+        "left";
 
 
       //
-      // Free / detach mode.
+      // Free object:
+      // ordinary left-drag movement.
       //
 
       if (
@@ -241,27 +334,16 @@ export class MovableSpringAttachment
           allowDrag === false
         ) {
 
+          this.activeDragButton =
+            null;
+
           return;
         }
 
 
-        this.dragging =
-          true;
-
-
-        this.cursor =
-          "grabbing";
-
-
-        const parentPosition =
-          this.parent.toLocal(
-            event.global,
-          );
-
-
-        this.dragOffsetX =
-          parentPosition.x -
-          this.x;
+        this.beginMoveDrag(
+          event,
+        );
 
 
         return;
@@ -269,7 +351,8 @@ export class MovableSpringAttachment
 
 
       //
-      // Attached manipulation mode.
+      // Attached:
+      // left-drag manipulates chain.
       //
 
       this.dragging =
@@ -304,14 +387,15 @@ export class MovableSpringAttachment
 
 
       //
-      // Attached:
-      // SpringPhysics determines
-      // the physical geometry.
+      // Only LEFT drag in stretch mode
+      // manipulates the physics chain.
       //
 
       if (
+        this.activeDragButton ===
+          "left" &&
         this.dragMode ===
-        "stretch"
+          "stretch"
       ) {
 
         this.onStretchMoveCallback?.({
@@ -328,7 +412,7 @@ export class MovableSpringAttachment
 
 
       //
-      // Free:
+      // Loose left-drag OR right-drag:
       // ordinary horizontal movement.
       //
 
@@ -370,12 +454,32 @@ export class MovableSpringAttachment
       }
 
 
+      const finishedButton =
+        this.activeDragButton;
+
+
       this.dragging =
         false;
 
 
+      this.activeDragButton =
+        null;
+
+
       this.cursor =
         "ew-resize";
+
+
+      if (
+        finishedButton ===
+          "right"
+      ) {
+
+        this.onRightDragEndCallback?.();
+
+
+        return;
+      }
 
 
       if (
@@ -438,6 +542,26 @@ export class MovableSpringAttachment
   ) {
 
     this.onStretchEndCallback =
+      callback;
+  }
+
+
+  public setOnRightDragStart(
+    callback:
+      () => boolean | void,
+  ) {
+
+    this.onRightDragStartCallback =
+      callback;
+  }
+
+
+  public setOnRightDragEnd(
+    callback:
+      () => void,
+  ) {
+
+    this.onRightDragEndCallback =
       callback;
   }
 
