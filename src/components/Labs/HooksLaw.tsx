@@ -1003,6 +1003,17 @@ function HooksLawContents() {
               tryAttachSpring(
                 spring,
               );
+
+
+              //
+              // Whether the spring
+              // attached or was simply
+              // dropped loose, resume
+              // dynamics from the
+              // current configuration.
+              //
+
+              physics.start();
             },
           );
 
@@ -1023,11 +1034,20 @@ function HooksLawContents() {
               }
 
 
-              return physics
-                .disconnectChild(
+              const detached =
+                physics.disconnectChild(
                   "spring",
                   spring.id,
                 );
+
+
+              if (detached) {
+
+                physics.start();
+              }
+
+
+              return detached;
             },
           );
 
@@ -1184,6 +1204,9 @@ function HooksLawContents() {
                 weight.setDragMode(
                   "move",
                 );
+
+
+                physics.start();
               }
 
 
@@ -1208,17 +1231,6 @@ function HooksLawContents() {
                       PIXELS_PER_METER,
                 },
               );
-
-
-              //
-              // Continue the remaining
-              // system from its current
-              // spring compression /
-              // extension, but with all
-              // velocities reset to zero.
-              //
-
-              physics.start();
             },
           );
         };
@@ -1449,6 +1461,17 @@ function HooksLawContents() {
 
 
             tryAttachRightAnchor();
+
+
+            //
+            // Whether the right
+            // attachment attached or
+            // was simply dropped loose,
+            // resume dynamics from the
+            // current configuration.
+            //
+
+            physics.start();
           },
         );
 
@@ -1481,6 +1504,9 @@ function HooksLawContents() {
                 .setDragMode(
                   "move",
                 );
+
+
+              physics.start();
             }
 
 
