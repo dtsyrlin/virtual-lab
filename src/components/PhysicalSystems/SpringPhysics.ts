@@ -2059,6 +2059,176 @@ manuallyMoveAnchor(
   }
 
 
+  // =====================================================
+  // Dynamic spring distribution
+  // =====================================================
+
+
+  private distributeSeriesLengthDynamic(
+    springs: SpringState[],
+    desiredTotalLength: number,
+  ) {
+
+    if (
+      springs.length === 0
+    ) {
+      return;
+    }
+
+
+    const naturalTotal =
+      springs.reduce(
+        (
+          total,
+          spring,
+        ) =>
+          total +
+          spring.length,
+
+        0,
+      );
+
+
+    const totalDeformation =
+      desiredTotalLength -
+      naturalTotal;
+
+
+    const inverseKTotal =
+      springs.reduce(
+        (
+          total,
+          spring,
+        ) =>
+          total +
+          1 / spring.k,
+
+        0,
+      );
+
+
+    if (
+      inverseKTotal <= 0
+    ) {
+      return;
+    }
+
+
+    //
+    // During free dynamics there is NO
+    // 0.5 L0 ... 1.5 L0 geometric clamp.
+    //
+    // The springs remain connected to the
+    // moving masses. Extreme deformation is
+    // handled by the nonlinear restoring
+    // force instead.
+    //
+
+    for (
+      const spring of
+      springs
+    ) {
+
+      const fraction =
+        (1 / spring.k) /
+        inverseKTotal;
+
+
+      spring.currentLength =
+        spring.length +
+        totalDeformation *
+          fraction;
+    }
+  }
+
+
+  // =====================================================
+  // Dynamic spring force
+  // =====================================================
+
+
+  private getDynamicSpringForce(
+    spring: SpringState,
+  ) {
+
+    const deformation =
+      spring.currentLength -
+      spring.length;
+
+
+    const absoluteDeformation =
+      Math.abs(
+        deformation,
+      );
+
+
+    const linearLimit =
+      spring.length * 0.5;
+
+
+    //
+    // Ordinary Hooke's law through
+    // +/- 50% deformation.
+    //
+
+    if (
+      absoluteDeformation <=
+      linearLimit
+    ) {
+
+      return (
+        spring.k *
+        deformation
+      );
+    }
+
+
+    //
+    // Beyond +/- 50%, transition to a
+    // rapidly hardening spring.
+    //
+    // The force is continuous at the
+    // 50% boundary and doubles for each
+    // additional 10% of natural length.
+    //
+
+    const excessStrain =
+      (
+        absoluteDeformation -
+        linearLimit
+      ) /
+      spring.length;
+
+
+    const exponent =
+      Math.min(
+        excessStrain / 0.1,
+        10,
+      );
+
+
+    const forceAtLinearLimit =
+      spring.k *
+      linearLimit;
+
+
+    const magnitude =
+      forceAtLinearLimit *
+      Math.pow(
+        2,
+        exponent,
+      );
+
+
+    return (
+      Math.sign(
+        deformation,
+      ) *
+      magnitude
+    );
+  }
+
+
 
   // =====================================================
   // Damping
@@ -2157,7 +2327,9 @@ manuallyMoveAnchor(
     // spring geometry.
     //
 
-    this.updateSpringGeometryFromWeights();
+    this.updateSpringGeometryFromWeights(
+      true,
+    );
 
 
     const weightGroups =
@@ -2235,10 +2407,8 @@ manuallyMoveAnchor(
             spring,
           ) =>
             total +
-            spring.k *
-            (
-              spring.currentLength -
-              spring.length
+            this.getDynamicSpringForce(
+              spring,
             ),
 
           0,
@@ -2407,7 +2577,9 @@ manuallyMoveAnchor(
     // Only mouse interaction may move it.
     //
 
-    this.updateSpringGeometryFromWeights();
+    this.updateSpringGeometryFromWeights(
+      true,
+    );
   }
 
 
@@ -2517,7 +2689,9 @@ private layoutChain(
   }
 }
 
-  private updateSpringGeometryFromWeights() {
+  private updateSpringGeometryFromWeights(
+    dynamic = false,
+  ) {
 
     if (
       this.anchorX === null
@@ -2627,10 +2801,20 @@ private layoutChain(
       // deformation according to 1/k.
       //
 
-      this.distributeSeriesLength(
-        group.springs,
-        availableLength,
-      );
+      if (dynamic) {
+
+        this.distributeSeriesLengthDynamic(
+          group.springs,
+          availableLength,
+        );
+
+      } else {
+
+        this.distributeSeriesLength(
+          group.springs,
+          availableLength,
+        );
+      }
 
 
       let x =
