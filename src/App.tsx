@@ -94,15 +94,11 @@ function App() {
 
         <p>Please enter your passcode:</p>
 
-        <input
-          type="password"
-          value={enteredPasscode}
-          onChange={(event) => setEnteredPasscode(event.target.value)}
-        />
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
 
-        <button
-          onClick={() => {
-            if (enteredPasscode === expectedPasscode) {
+            if (enteredPasscode === users[user].passcode) {
               setAuthorized(true)
               setWrongPasscode(false)
             } else {
@@ -110,9 +106,16 @@ function App() {
             }
           }}
         >
-          Enter
-        </button>
+          <input
+            type="password"
+            value={enteredPasscode}
+            onChange={(event) => setEnteredPasscode(event.target.value)}
+          />
 
+          <button type="submit">
+            Enter
+          </button>
+        </form>
         {wrongPasscode && (
           <p>Oops, something doesn't add up...</p>
         )}
