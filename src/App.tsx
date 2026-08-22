@@ -64,18 +64,8 @@ function App() {
   const user = window.location.pathname.split('/')[1]
 
 
-  // Look up the expected passcode for this user.
-  //
-  // If user = "fusion":
-  // users[user] = users["fusion"] = "fusion26"
-  //
-  // If the user does not exist:
-  // users[user] will be undefined.
-  const expectedPasscode = users[user].passcode
-
-
   // User is not in our users list.
-  if (expectedPasscode === undefined) {
+  if (users[user] === undefined) {
     return (
       <div style={{ padding: '30px' }}>
         <h2>
@@ -84,7 +74,6 @@ function App() {
       </div>
     )
   }
-
 
   // User exists, but has not entered the correct passcode yet.
   if (!authorized) {
