@@ -323,6 +323,9 @@ export class Spring2D extends Container {
       // Label above spring.
       //
 
+      this.kLabel.rotation =
+        0;
+
       this.kLabel.position.set(
         lengthPixels / 2,
         -20,
@@ -432,8 +435,11 @@ export class Spring2D extends Container {
       );
 
 
+      this.kLabel.rotation =
+        Math.PI / 2;
+
       this.kLabel.position.set(
-        30,
+        28,
         lengthPixels / 2,
       );
     }

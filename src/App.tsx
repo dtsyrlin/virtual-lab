@@ -6,7 +6,7 @@ import StackingBars from './components/Labs/StackingBars'
 import ProtractorAndRulers from './components/Labs/ProtractorAndRulers'
 import Geometry from './components/Labs/Geometry'
 import HooksLaw from './components/Labs/HooksLaw'
-
+import VerticalHooksLaw from './components/Labs/VerticalHooksLaw'
 
 type UserInfo = {
   passcode: string
@@ -43,9 +43,13 @@ const experiments = [
     component: Geometry,
   },
   {
-    name: 'Hooks Law',
+    name: 'Horizontal Hooks Law',
     component: HooksLaw,
   },
+  {
+    name: 'Vertical Hooks Law',
+    component: VerticalHooksLaw,
+  },  
 ]
 
 
