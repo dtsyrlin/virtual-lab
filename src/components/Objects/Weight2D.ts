@@ -37,8 +37,7 @@ export class Weight2D extends Container {
 
   public readonly id: string;
 
-  public readonly mass: number;
-
+  public mass: number;
 
   private weightSize:
     number;
@@ -524,6 +523,25 @@ export class Weight2D extends Container {
     this.onMoveDragEndCallback?.();
   };
 
+
+  public setLabel(
+    label: string,
+  ) {
+
+    this.massLabel.text =
+      label;
+  }
+
+  public setMass(
+    mass: number,
+  ) {
+
+    this.mass =
+      mass;
+
+    this.massLabel.text =
+      `${this.mass} kg`;
+  }
 
   public setDragMode(
     mode: WeightDragMode,

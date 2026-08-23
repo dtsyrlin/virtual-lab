@@ -7,6 +7,7 @@ import ProtractorAndRulers from './components/Labs/ProtractorAndRulers'
 import Geometry from './components/Labs/Geometry'
 import HooksLaw from './components/Labs/HooksLaw'
 import VerticalHooksLaw from './components/Labs/VerticalHooksLaw'
+import BalancingWeights from './components/Labs/BalancingWeights'
 
 type UserInfo = {
   passcode: string
@@ -49,7 +50,11 @@ const experiments = [
   {
     name: 'Vertical Hooks Law',
     component: VerticalHooksLaw,
-  },  
+  },
+  {
+    name: 'Balancing Weights',
+    component: BalancingWeights,
+  },    
 ]
 
 
