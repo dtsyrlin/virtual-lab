@@ -385,18 +385,6 @@ function BalancingWeightsContents() {
         };
 
 
-      const positionAllStacks =
-        () => {
-
-          positionStack(
-            "left"
-          );
-
-          positionStack(
-            "right"
-          );
-        };
-
 
       const removeFromStack =
         (
