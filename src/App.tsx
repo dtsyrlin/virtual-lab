@@ -10,19 +10,16 @@ import VerticalHooksLaw from './components/Labs/VerticalHooksLaw'
 import BalancingWeights from './components/Labs/BalancingWeights'
 
 type UserInfo = {
-  passcode: string
   displayName: string
 }
 
 const users: Record<string, UserInfo> = {
-  fusion: {
-    passcode: 'fusion26',
+  fusion26: {
     displayName: 'Fusion Academy',
   },
 
-  test: {
-    passcode: 'test26',
-    displayName: 'Test Academy',
+  anabelle: {
+    displayName: 'Anabelle',
   },
 }
 
@@ -67,28 +64,12 @@ function App() {
   const [wrongPasscode, setWrongPasscode] = useState(false)
 
 
-  // Example:
-  // /fusion -> fusion
-  // /test   -> test
-  const user = window.location.pathname.split('/')[1]
-
-
-  // User is not in our users list.
-  if (users[user] === undefined) {
-    return (
-      <div style={{ padding: '30px' }}>
-        <h2>
-          You are not authorized to use this page, your IP address has been recorded.
-        </h2>
-      </div>
-    )
-  }
-
   // User exists, but has not entered the correct passcode yet.
   if (!authorized) {
     return (
       <div style={{ padding: '30px' }}>
-        <h1>{users[user].displayName} Virtual Labs</h1>
+        <h1>Welcome to DILEMMA!</h1>
+        <h3>Digital Interactive Learning Environment for Modeling, Measurement and Analysis</h3>
 
         <p>Please enter your passcode:</p>
 
@@ -96,11 +77,11 @@ function App() {
           onSubmit={(event) => {
             event.preventDefault()
 
-            if (enteredPasscode === users[user].passcode) {
+            if (undefined === users[enteredPasscode]) {
+              setWrongPasscode(true)
+            } else {
               setAuthorized(true)
               setWrongPasscode(false)
-            } else {
-              setWrongPasscode(true)
             }
           }}
         >
@@ -144,7 +125,7 @@ function App() {
 
   return (
     <div style={{ padding: '30px' }}>
-      <h1>{users[user].displayName} Virtual Labs</h1>
+      <h1>{users[enteredPasscode].displayName} Virtual Labs</h1>
 
       <h2>Select an Experiment</h2>
 
