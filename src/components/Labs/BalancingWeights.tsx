@@ -47,6 +47,9 @@ type WeightFactoryConfig = {
   };
 
   initialMass: number;
+
+  minMass: number;
+  maxMass: number;
 };
 
 
@@ -55,10 +58,11 @@ const SNAP_DISTANCE_Y =
 
 
 const WEIGHT_SIZE =
-  50;
+  40;
 
 
 const UNKNOWN_LABELS = [
+  "w",
   "x",
   "y",
   "z",
@@ -134,7 +138,7 @@ function BalancingWeightsContents() {
         new Balance2D({
 
           position: {
-            x: 650,
+            x: 620,
             y: 360,
           },
 
@@ -142,7 +146,7 @@ function BalancingWeightsContents() {
             460,
 
           height:
-            190,
+            240,
         });
 
 
@@ -161,46 +165,85 @@ function BalancingWeightsContents() {
           {
             controlPosition: {
               x: 20,
-              y: 30,
+              y: 20,
             },
 
             weightPosition: {
               x: 210,
-              y: 95,
+              y: 78,
             },
 
             initialMass:
-              2,
+              1,
+
+            minMass:
+              1,
+
+            maxMass:
+              13,
           },
 
           {
             controlPosition: {
               x: 20,
-              y: 200,
+              y: 150,
             },
 
             weightPosition: {
               x: 210,
-              y: 265,
+              y: 208,
             },
 
             initialMass:
               3,
+
+            minMass:
+              1,
+
+            maxMass:
+              13,
           },
 
           {
             controlPosition: {
               x: 20,
-              y: 370,
+              y: 280,
             },
 
             weightPosition: {
               x: 210,
-              y: 435,
+              y: 338,
             },
 
             initialMass:
               5,
+
+            minMass:
+              1,
+
+            maxMass:
+              13,
+          },
+
+          {
+            controlPosition: {
+              x: 20,
+              y: 410,
+            },
+
+            weightPosition: {
+              x: 210,
+              y: 468,
+            },
+
+            initialMass:
+              14,
+
+            minMass:
+              14,
+
+            maxMass:
+              27,
           },
         ];
 
@@ -216,6 +259,7 @@ function BalancingWeightsContents() {
         false,
         false,
         false,
+        false,
       ];
 
 
@@ -223,6 +267,7 @@ function BalancingWeightsContents() {
         Array<
           string | null
         > = [
+          null,
           null,
           null,
           null,
@@ -383,8 +428,6 @@ function BalancingWeightsContents() {
             );
           }
         };
-
-
 
       const removeFromStack =
         (
@@ -814,10 +857,10 @@ function BalancingWeightsContents() {
                 false,
 
               min:
-                2,
+                config.minMass,
 
               max:
-                13,
+                config.maxMass,
 
               value:
                 config.initialMass,
@@ -829,13 +872,16 @@ function BalancingWeightsContents() {
                 config.controlPosition,
 
               onValueChanged:
-                value => {
+                (
+                  value,
+                  isRandom
+                ) => {
 
                   clearGeneratedWeights();
 
 
                   if (
-                    value <= 1
+                    isRandom
                   ) {
 
                     factoryIsRandom[
@@ -848,8 +894,8 @@ function BalancingWeightsContents() {
                       index
                     ] =
                       randomInteger(
-                        2,
-                        13
+                        config.minMass,
+                        config.maxMass
                       );
 
 
@@ -924,6 +970,10 @@ function BalancingWeightsContents() {
 
       createWeightFactory(
         2
+      );
+
+      createWeightFactory(
+        3
       );
     },
   );

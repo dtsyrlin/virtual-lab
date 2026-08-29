@@ -12,21 +12,9 @@ export interface SizeControlOptions {
 
     showLabel?: boolean;
 
-    /*
-     * Actual numeric range.
-     *
-     * Positions 0 and 1 are automatically
-     * treated as random values.
-     */
     min?: number;
     max?: number;
 
-    /*
-     * Slider position.
-     *
-     * 0 or 1 = random
-     * 2...max = actual value
-     */
     value?: number;
 
     unlimitedSupply?: boolean;
@@ -39,7 +27,8 @@ export interface SizeControlOptions {
     };
 
     onValueChanged?: (
-        value: number
+        value: number,
+        isRandom: boolean
     ) => void;
 
     onUnlimitedSupplyChanged?: (
@@ -54,15 +43,16 @@ export class SizeControl extends Container {
     private readonly max: number;
 
     private _value: number;
+    private _isRandom = false;
+
     private _unlimitedSupply: boolean;
 
     private readonly showUnlimitedSupply: boolean;
 
     private readonly sliderStartX: number;
-
     private readonly sliderY = 22;
 
-    private readonly stepWidth = 32;
+    private readonly stepWidth = 24;
 
     private readonly knobRadius = 9;
 
@@ -77,7 +67,8 @@ export class SizeControl extends Container {
     private draggingSlider = false;
 
     private onValueChanged?: (
-        value: number
+        value: number,
+        isRandom: boolean
     ) => void;
 
     private onUnlimitedSupplyChanged?: (
@@ -141,9 +132,6 @@ export class SizeControl extends Container {
         );
 
 
-        /*
-         * Optional control label.
-         */
         if (showLabel) {
 
             const title =
@@ -170,16 +158,23 @@ export class SizeControl extends Container {
 
 
         /*
-         * Slider line.
+         * Slider positions:
+         *
+         * 0 = R1
+         * 1 = R2
+         * 2... = numeric values min...max
+         *
+         * This lets numeric 1 coexist with
+         * the two random positions.
          */
-        this.sliderLine =
-            new Graphics();
-
-
-        const sliderEndX =
-            this.positionForValue(
+        const lastPosition =
+            this.numericValueToPosition(
                 this.max
             );
+
+
+        this.sliderLine =
+            new Graphics();
 
 
         this.sliderLine
@@ -188,7 +183,9 @@ export class SizeControl extends Container {
                 this.sliderY
             )
             .lineTo(
-                sliderEndX,
+                this.positionForSliderPosition(
+                    lastPosition
+                ),
                 this.sliderY
             )
             .stroke({
@@ -216,75 +213,42 @@ export class SizeControl extends Container {
 
 
         /*
-         * Slider labels.
+         * R1 and R2 labels.
+         */
+        this.createValueLabel(
+            "R1",
+            0,
+            true
+        );
+
+        this.createValueLabel(
+            "R2",
+            1,
+            true
+        );
+
+
+        /*
+         * Numeric labels.
          */
         for (
-            let value = 0;
-            value <= this.max;
-            value++
+            let numericValue = this.min;
+            numericValue <= this.max;
+            numericValue++
         ) {
 
-            if (
-                value >= 2 &&
-                value < this.min
-            ) {
-                continue;
-            }
-
-
-            const displayText =
-                value == 0
-                    ? "R1"
-                    : value == 1
-                        ? "R2"
-                        : String(value);
-
-
-            const text =
-                new Text({
-                    text:
-                        displayText,
-
-                    style: {
-                        fontSize:
-                            value <= 1
-                                ? 12
-                                : 14,
-
-                        fill:
-                            0x000000,
-                    },
-                });
-
-
-            text.anchor.set(
-                0.5,
-                0
-            );
-
-
-            text.position.set(
-                this.positionForValue(
-                    value
+            this.createValueLabel(
+                String(
+                    numericValue
                 ),
-                this.sliderY + 13
-            );
-
-
-            this.valueLabels.push(
-                text
-            );
-
-
-            this.addChild(
-                text
+                this.numericValueToPosition(
+                    numericValue
+                ),
+                false
             );
         }
 
 
-        /*
-         * Slider knob.
-         */
         this.knob =
             new Graphics()
                 .circle(
@@ -302,8 +266,10 @@ export class SizeControl extends Container {
 
 
         this.knob.position.set(
-            this.positionForValue(
-                this._value
+            this.positionForSliderPosition(
+                this.numericValueToPosition(
+                    this._value
+                )
             ),
             this.sliderY
         );
@@ -345,36 +311,96 @@ export class SizeControl extends Container {
         );
 
 
-        /*
-         * Unlimited supply checkbox.
-         */
         if (
             this.showUnlimitedSupply
         ) {
 
             this.createUnlimitedSupplyControl(
-                sliderEndX + 45
+                this.positionForSliderPosition(
+                    lastPosition
+                ) + 45
             );
         }
     }
 
 
-    private positionForValue(
-        value: number
-    ): number {
+    private createValueLabel(
+        textValue: string,
+        sliderPosition: number,
+        random: boolean
+    ) {
 
-        return (
-            this.sliderStartX +
-            value * this.stepWidth
+        const text =
+            new Text({
+                text:
+                    textValue,
+
+                style: {
+                    fontSize:
+                        random
+                            ? 12
+                            : 14,
+
+                    fill:
+                        0x000000,
+                },
+            });
+
+
+        text.anchor.set(
+            0.5,
+            0
+        );
+
+
+        text.position.set(
+            this.positionForSliderPosition(
+                sliderPosition
+            ),
+            this.sliderY + 13
+        );
+
+
+        this.valueLabels.push(
+            text
+        );
+
+
+        this.addChild(
+            text
         );
     }
 
 
-    private valueFromX(
+    private numericValueToPosition(
+        value: number
+    ): number {
+
+        return (
+            2 +
+            value -
+            this.min
+        );
+    }
+
+
+    private positionForSliderPosition(
+        sliderPosition: number
+    ): number {
+
+        return (
+            this.sliderStartX +
+            sliderPosition *
+            this.stepWidth
+        );
+    }
+
+
+    private sliderPositionFromX(
         x: number
     ): number {
 
-        let value =
+        let sliderPosition =
             Math.round(
                 (
                     x -
@@ -384,26 +410,32 @@ export class SizeControl extends Container {
             );
 
 
-        if (value < 0) {
-            value = 0;
-        }
+        const lastPosition =
+            this.numericValueToPosition(
+                this.max
+            );
 
 
-        if (value > this.max) {
-            value = this.max;
+        if (
+            sliderPosition < 0
+        ) {
+
+            sliderPosition =
+                0;
         }
 
 
         if (
-            value >= 2 &&
-            value < this.min
+            sliderPosition >
+            lastPosition
         ) {
 
-            value = this.min;
+            sliderPosition =
+                lastPosition;
         }
 
 
-        return value;
+        return sliderPosition;
     }
 
 
@@ -459,16 +491,35 @@ export class SizeControl extends Container {
             );
 
 
-        const newValue =
-            this.valueFromX(
+        const sliderPosition =
+            this.sliderPositionFromX(
                 local.x
             );
 
 
+        const isRandom =
+            sliderPosition <= 1;
+
+
+        const newValue =
+            isRandom
+                ? sliderPosition
+                : this.min +
+                    sliderPosition -
+                    2;
+
+
+        /*
+         * R1 and R2 are distinct slider
+         * positions even though both are random.
+         */
         if (
             newValue ===
-            this._value
+                this._value &&
+            isRandom ===
+                this._isRandom
         ) {
+
             return;
         }
 
@@ -476,15 +527,19 @@ export class SizeControl extends Container {
         this._value =
             newValue;
 
+        this._isRandom =
+            isRandom;
+
 
         this.knob.position.x =
-            this.positionForValue(
-                this._value
+            this.positionForSliderPosition(
+                sliderPosition
             );
 
 
         this.onValueChanged?.(
-            this._value
+            this._value,
+            this._isRandom
         );
     }
 
@@ -629,9 +684,10 @@ export class SizeControl extends Container {
     ) {
 
         if (
-            value < 0 ||
+            value < this.min ||
             value > this.max
         ) {
+
             return;
         }
 
@@ -639,10 +695,15 @@ export class SizeControl extends Container {
         this._value =
             value;
 
+        this._isRandom =
+            false;
+
 
         this.knob.position.x =
-            this.positionForValue(
-                value
+            this.positionForSliderPosition(
+                this.numericValueToPosition(
+                    value
+                )
             );
     }
 
@@ -673,10 +734,7 @@ export class SizeControl extends Container {
 
     public get isRandom(): boolean {
 
-        return (
-            this._value === 0 ||
-            this._value === 1
-        );
+        return this._isRandom;
     }
 
 

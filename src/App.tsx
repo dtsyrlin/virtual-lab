@@ -8,14 +8,15 @@ import Geometry from './components/Labs/Geometry'
 import HooksLaw from './components/Labs/HooksLaw'
 import VerticalHooksLaw from './components/Labs/VerticalHooksLaw'
 import BalancingWeights from './components/Labs/BalancingWeights'
+import ChemicalEquations from './components/Labs/ChemicalEquations'
 
 type UserInfo = {
   displayName: string
 }
 
 const users: Record<string, UserInfo> = {
-  fusion26: {
-    displayName: 'Fusion Academy',
+  dilemma26: {
+    displayName: 'DILEMMA',
   },
 
   anabelle: {
@@ -51,7 +52,13 @@ const experiments = [
   {
     name: 'Balancing Weights',
     component: BalancingWeights,
-  },    
+  },   
+  {
+    name: 'Chemical Equations',
+    component: ChemicalEquations,
+  },   
+  
+  
 ]
 
 
