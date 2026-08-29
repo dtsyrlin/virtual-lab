@@ -1,7 +1,11 @@
-
 import {
   Application,
 } from "@pixi/react";
+
+import {
+  Container,
+  Graphics,
+} from "pixi.js";
 
 import {
   Experiment2D,
@@ -26,67 +30,124 @@ function ProtractorAndRulersContents() {
   useExperiment2D(
     (experiment: Experiment2D) => {
 
-    const ruler1 =
-      new Ruler2D(
-        1,
-        {
-          x: 50,
-          y: 600,
-        },
-        PIXELS_PER_METER,
-        "vertical"
+      // ==================================================
+      // RULER FACTORY
+      // ==================================================
+
+      const factory =
+        new Container();
+
+      factory.position.set(
+        50,
+        600
       );
 
-    const ruler2 =
-      new Ruler2D(
-        1,
-        {
-          x: 110,
-          y: 600,
-        },
-        PIXELS_PER_METER,
-        "vertical"
+
+      /*
+       * This ruler is only the visual ruler
+       * shown in the factory.
+       *
+       * It is never dragged out of the factory.
+       */
+      const factoryRuler =
+        new Ruler2D(
+          1,
+          {
+            x: 0,
+            y: 0,
+          },
+          PIXELS_PER_METER,
+          "vertical"
+        );
+
+      factory.addChild(
+        factoryRuler
       );
 
-    const ruler3 =
-      new Ruler2D(
-        1,
-        {
-          x: 170,
-          y: 600,
-        },
-        PIXELS_PER_METER,
-        "vertical"
+
+      /*
+       * Transparent layer on top of the ruler.
+       *
+       * It intercepts the click before the
+       * factory ruler can begin dragging.
+       */
+      const factoryHitArea =
+        new Graphics();
+
+      factoryHitArea
+        .rect(
+          0,
+          -PIXELS_PER_METER,
+          50,
+          PIXELS_PER_METER
+        )
+        .fill({
+          color: 0xffffff,
+          alpha: 0.001,
+        });
+
+      factoryHitArea.eventMode =
+        "static";
+
+      factoryHitArea.cursor =
+        "pointer";
+
+
+      factoryHitArea.on(
+        "pointerdown",
+        (event) => {
+
+          if (
+            event.button !== 0
+          ) {
+            return;
+          }
+
+          event.stopPropagation();
+
+
+          const ruler =
+            new Ruler2D(
+              1,
+              {
+                x: 120,
+                y: 600,
+              },
+              PIXELS_PER_METER,
+              "vertical"
+            );
+
+          experiment.add(
+            ruler
+          );
+        }
       );
 
-    const ruler4 =
-      new Ruler2D(
-        1,
-        {
-          x: 230,
-          y: 600,
-        },
-        PIXELS_PER_METER,
-        "vertical"
+
+      factory.addChild(
+        factoryHitArea
       );
 
-    experiment.add(ruler1);
-    experiment.add(ruler2);
-    experiment.add(ruler3);
-    experiment.add(ruler4);
+
+      experiment.add(
+        factory
+      );
 
 
-    experiment.add(
-      new Protractor2D(
-        0.3,
-        {
-          x: 200,
-          y: 600,
-        },
-        PIXELS_PER_METER,
-      )
-    );
+      // ==================================================
+      // PROTRACTOR
+      // ==================================================
 
+      experiment.add(
+        new Protractor2D(
+          0.3,
+          {
+            x: 400,
+            y: 600,
+          },
+          PIXELS_PER_METER,
+        )
+      );
 
     }
   );
@@ -100,13 +161,13 @@ function ProtractorAndRulersContents() {
 export default function ProtractorAndRulers() {
   return (
 
-      <Application
-        resizeTo={window}
-        backgroundColor={0xe8edf2}
-        antialias
-      >
-        <ProtractorAndRulersContents  />
-      </Application>
+    <Application
+      resizeTo={window}
+      backgroundColor={0xe8edf2}
+      antialias
+    >
+      <ProtractorAndRulersContents />
+    </Application>
 
   );
 }
