@@ -32,14 +32,14 @@ export class Timer2D extends Container {
     this.startStopLabel =
       this.createButton(
         "START",
-        20,
+        10,
         65,
         () => this.toggleRunning()
       );
 
     this.createButton(
       "RESET",
-      130,
+      90,
       65,
       () => this.reset()
     );
@@ -52,7 +52,7 @@ export class Timer2D extends Container {
       .roundRect(
         0,
         0,
-        210,
+        160,
         60,
         8
       )
@@ -76,7 +76,7 @@ export class Timer2D extends Container {
     });
 
     display.position.set(
-      65,
+      48,
       13
     );
 

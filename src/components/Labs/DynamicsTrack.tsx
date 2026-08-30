@@ -25,6 +25,10 @@ import {
 } from "../Objects/Ruler2D";
 
 import {
+    Timer2D,
+} from "../Objects/Timer2D";
+
+import {
     GlidingBlock2D,
 } from "../Objects/GlidingBlock2D";
 
@@ -117,6 +121,11 @@ function DynamicsTrackContents() {
     const trackRef =
         useRef<
             DynamicsTrack2D | null
+        >(null);
+
+    const timerRef =
+        useRef<
+            Timer2D | null
         >(null);
 
     const blocksRef =
@@ -1148,7 +1157,7 @@ function DynamicsTrackContents() {
             const collisionTypeControl =
                 new CollisionTypeControl({
                     position: {
-                        x: 770,
+                        x: 600,
                         y: 20,
                     },
 
@@ -1197,7 +1206,7 @@ function DynamicsTrackContents() {
                             value.toFixed(1),
 
                     position: {
-                        x: 410,
+                        x: 350,
                         y: 20,
                     },
 
@@ -1235,7 +1244,7 @@ function DynamicsTrackContents() {
                             value.toFixed(2),
 
                     position: {
-                        x: 410,
+                        x: 350,
                         y: 100,
                     },
 
@@ -1259,6 +1268,22 @@ function DynamicsTrackContents() {
 
 
             createFactoryBlock();
+
+
+            const timer =
+                new Timer2D(
+                    790,
+                    25
+                );
+
+
+            timerRef.current =
+                timer;
+
+
+            experiment.add(
+                timer
+            );
         }
     );
 
@@ -1285,6 +1310,11 @@ function DynamicsTrackContents() {
             const deltaTimeSeconds =
                 ticker.deltaMS /
                 1000;
+
+
+            timerRef.current?.update(
+                deltaTimeSeconds
+            );
 
 
             physics.move(
