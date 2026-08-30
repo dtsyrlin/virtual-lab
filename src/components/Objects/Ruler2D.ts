@@ -450,6 +450,16 @@ private handlePointerDown(
   }
 
 
+  /*
+   * Measuring tools should remain visible
+   * over the experiment while being used.
+   */
+  this.parent.setChildIndex(
+    this,
+    this.parent.children.length - 1
+  );
+
+
   this.isDragging =
     true;
 
@@ -525,6 +535,16 @@ private handlePointerDown(
     ) {
       return;
     }
+
+    /*
+     * Rotation is also part of using the
+     * ruler as a measuring tool, so keep
+     * it above the experiment.
+     */
+    this.parent.setChildIndex(
+      this,
+      this.parent.children.length - 1
+    );
 
     this.isDragging =
       false;

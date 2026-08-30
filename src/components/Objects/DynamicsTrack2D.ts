@@ -1,7 +1,9 @@
 import {
     Container,
+    FederatedPointerEvent,
     Graphics,
     Point,
+    Rectangle,
 } from "pixi.js";
 
 
@@ -18,6 +20,8 @@ export interface DynamicsTrack2DOptions {
 
     angleRadians?: number;
 
+    maxAngleRadians?: number;
+
     trackThickness?: number;
 
     stopperHeight?: number;
@@ -33,13 +37,36 @@ export class DynamicsTrack2D extends Container {
 
     private _angleRadians: number;
 
+    private readonly maxAngleRadians: number;
+
     private readonly trackThickness: number;
 
     private readonly stopperHeight: number;
     private readonly stopperWidth: number;
 
-    private readonly graphics =
+    private readonly baselineY: number;
+
+    private readonly fixedRightX: number;
+    private readonly fixedRightY: number;
+
+    private readonly supportGraphics =
         new Graphics();
+
+    private readonly trackGraphics =
+        new Graphics();
+
+    private readonly leftStopper =
+        new Graphics();
+
+    private draggingLeftEnd =
+        false;
+
+    private dragOffsetY =
+        0;
+
+    private onAngleChanged?: (
+        angleRadians: number
+    ) => void;
 
 
     constructor({
@@ -50,6 +77,10 @@ export class DynamicsTrack2D extends Container {
         pixelsPerMeter,
 
         angleRadians = 0,
+
+        maxAngleRadians =
+            Math.PI /
+            6,
 
         trackThickness = 8,
 
@@ -69,6 +100,9 @@ export class DynamicsTrack2D extends Container {
         this._angleRadians =
             angleRadians;
 
+        this.maxAngleRadians =
+            maxAngleRadians;
+
         this.trackThickness =
             trackThickness;
 
@@ -79,28 +113,84 @@ export class DynamicsTrack2D extends Container {
             stopperWidth;
 
 
-        this.position.set(
-            position.x,
-            position.y
-        );
+        const lengthPixels =
+            this.length *
+            this.pixelsPerMeter;
 
 
-        this.rotation =
-            this._angleRadians;
+        this.baselineY =
+            position.y;
+
+        this.fixedRightX =
+            position.x +
+            lengthPixels;
+
+        this.fixedRightY =
+            position.y;
 
 
         this.addChild(
-            this.graphics
+            this.supportGraphics
+        );
+
+        this.addChild(
+            this.trackGraphics
+        );
+
+        this.addChild(
+            this.leftStopper
         );
 
 
-        this.draw();
+        this.leftStopper.eventMode =
+            "static";
+
+        this.leftStopper.cursor =
+            "ns-resize";
+
+        this.leftStopper.hitArea =
+            new Rectangle(
+                -20,
+                -this.stopperHeight - 12,
+                40,
+                this.stopperHeight + 24
+            );
+
+
+        this.leftStopper.on(
+            "pointerdown",
+            this.handleLeftPointerDown
+        );
+
+        this.leftStopper.on(
+            "globalpointermove",
+            this.handleLeftPointerMove
+        );
+
+        this.leftStopper.on(
+            "pointerup",
+            this.handleLeftPointerUp
+        );
+
+        this.leftStopper.on(
+            "pointerupoutside",
+            this.handleLeftPointerUp
+        );
+
+
+        this.drawTrack();
+
+        this.setAngle(
+            this._angleRadians
+        );
     }
 
 
-    private draw() {
+    private drawTrack() {
 
-        this.graphics.clear();
+        this.trackGraphics.clear();
+
+        this.leftStopper.clear();
 
 
         const lengthPixels =
@@ -108,19 +198,37 @@ export class DynamicsTrack2D extends Container {
             this.pixelsPerMeter;
 
 
-        this.graphics
-            .rect(
+        this.trackGraphics
+            .moveTo(
                 0,
-                -this.trackThickness,
+                -this.trackThickness /
+                    2
+            )
+            .lineTo(
                 lengthPixels,
-                this.trackThickness
+                -this.trackThickness /
+                    2
+            )
+            .stroke({
+                color: 0x777777,
+                width:
+                    this.trackThickness,
+            });
+
+
+        this.trackGraphics
+            .rect(
+                lengthPixels,
+                -this.stopperHeight,
+                this.stopperWidth,
+                this.stopperHeight
             )
             .fill(
                 0x777777
             );
 
 
-        this.graphics
+        this.leftStopper
             .rect(
                 -this.stopperWidth,
                 -this.stopperHeight,
@@ -130,18 +238,150 @@ export class DynamicsTrack2D extends Container {
             .fill(
                 0x777777
             );
+    }
 
 
-        this.graphics
+    private drawSupport() {
+
+        this.supportGraphics.clear();
+
+
+        const supportHeight =
+            Math.max(
+                0,
+                this.baselineY -
+                this.position.y
+            );
+
+
+        if (
+            supportHeight <= 0
+        ) {
+
+            return;
+        }
+
+
+        this.supportGraphics.rotation =
+            -this._angleRadians;
+
+
+        this.supportGraphics
             .rect(
-                lengthPixels,
-                -this.stopperHeight,
-                this.stopperWidth,
-                this.stopperHeight
+                -4,
+                0,
+                8,
+                supportHeight
             )
             .fill(
                 0x777777
             );
+
+
+        this.supportGraphics
+            .rect(
+                -18,
+                supportHeight - 6,
+                36,
+                6
+            )
+            .fill(
+                0x777777
+            );
+    }
+
+
+    private handleLeftPointerDown = (
+        event:
+            FederatedPointerEvent
+    ) => {
+
+        this.draggingLeftEnd =
+            true;
+
+
+        this.dragOffsetY =
+            event.global.y -
+            this.position.y;
+    };
+
+
+    private handleLeftPointerMove = (
+        event:
+            FederatedPointerEvent
+    ) => {
+
+        if (
+            !this.draggingLeftEnd
+        ) {
+
+            return;
+        }
+
+
+        const requestedLeftY =
+            event.global.y -
+            this.dragOffsetY;
+
+
+        const lengthPixels =
+            this.length *
+            this.pixelsPerMeter;
+
+
+        const maxRise =
+            lengthPixels *
+            Math.sin(
+                this.maxAngleRadians
+            );
+
+
+        const rise =
+            Math.max(
+                0,
+                Math.min(
+                    maxRise,
+                    this.baselineY -
+                    requestedLeftY
+                )
+            );
+
+
+        const angleRadians =
+            Math.asin(
+                rise /
+                lengthPixels
+            );
+
+
+        this.setAngle(
+            angleRadians
+        );
+
+
+        this.onAngleChanged?.(
+            angleRadians
+        );
+    };
+
+
+    private handleLeftPointerUp = () => {
+
+        this.draggingLeftEnd =
+            false;
+    };
+
+
+    public setOnAngleChanged(
+        callback:
+            (
+                angleRadians:
+                    number
+            ) => void
+    ) {
+
+        this.onAngleChanged =
+            callback;
     }
 
 
@@ -150,10 +390,40 @@ export class DynamicsTrack2D extends Container {
     ) {
 
         this._angleRadians =
-            angleRadians;
+            Math.max(
+                0,
+                Math.min(
+                    this.maxAngleRadians,
+                    angleRadians
+                )
+            );
+
+
+        const lengthPixels =
+            this.length *
+            this.pixelsPerMeter;
+
+
+        this.position.set(
+            this.fixedRightX -
+                lengthPixels *
+                Math.cos(
+                    this._angleRadians
+                ),
+
+            this.fixedRightY -
+                lengthPixels *
+                Math.sin(
+                    this._angleRadians
+                )
+        );
+
 
         this.rotation =
-            angleRadians;
+            this._angleRadians;
+
+
+        this.drawSupport();
     }
 
 

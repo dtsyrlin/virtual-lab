@@ -17,7 +17,13 @@ export interface Photogate2DOptions {
 
     trackPosition: number;
 
+    label?: string;
+
     beamHeight?: number;
+
+    maxMeasurements?: number;
+
+    onClear?: () => void;
 }
 
 
@@ -29,11 +35,25 @@ export class Photogate2D extends Container {
     private readonly readingsText:
         Text;
 
+    private readonly labelText:
+        Text;
+
+    private readonly clearButton =
+        new Graphics();
+
+    private readonly clearButtonText:
+        Text;
+
     private _trackPosition:
         number;
 
     private readonly beamHeight:
         number;
+
+    private readonly maxMeasurements:
+        number;
+
+    private readonly onClear?: () => void;
 
     private dragging =
         false;
@@ -62,7 +82,13 @@ export class Photogate2D extends Container {
 
         trackPosition,
 
+        label = "",
+
         beamHeight = 75,
+
+        maxMeasurements = 3,
+
+        onClear,
     }: Photogate2DOptions) {
 
         super();
@@ -74,10 +100,35 @@ export class Photogate2D extends Container {
         this.beamHeight =
             beamHeight;
 
+        this.maxMeasurements =
+            maxMeasurements;
+
+        this.onClear =
+            onClear;
+
 
         this.position.set(
             position.x,
             position.y
+        );
+
+
+        this.labelText =
+            new Text({
+                text:
+                    label,
+
+                style: {
+                    fontSize: 15,
+                    fontWeight: "bold",
+                    fill: 0x000000,
+                },
+            });
+
+
+        this.labelText.position.set(
+            10,
+            -this.beamHeight
         );
 
 
@@ -98,12 +149,75 @@ export class Photogate2D extends Container {
         );
 
 
+        this.clearButtonText =
+            new Text({
+                text: "C",
+
+                style: {
+                    fontSize: 12,
+                    fill: 0x000000,
+                },
+            });
+
+
+        this.clearButtonText.anchor.set(
+            0.5
+        );
+
+
+        this.clearButton.position.set(
+            62,
+            10
+        );
+
+
+        this.clearButtonText.position.set(
+            72,
+            20
+        );
+
+
+        this.clearButton.eventMode =
+            "static";
+
+        this.clearButton.cursor =
+            "pointer";
+
+
+        this.clearButton.on(
+            "pointerdown",
+            (
+                event:
+                    FederatedPointerEvent
+            ) => {
+
+                event.stopPropagation();
+
+                this.clearMeasurements();
+
+                this.onClear?.();
+            }
+        );
+
+
         this.addChild(
             this.graphics
         );
 
         this.addChild(
+            this.labelText
+        );
+
+        this.addChild(
             this.readingsText
+        );
+
+        this.addChild(
+            this.clearButton
+        );
+
+        this.addChild(
+            this.clearButtonText
         );
 
 
@@ -118,8 +232,8 @@ export class Photogate2D extends Container {
             new Rectangle(
                 -12,
                 -this.beamHeight - 10,
-                24,
-                this.beamHeight + 20
+                100,
+                this.beamHeight + 80
             );
 
 
@@ -187,6 +301,26 @@ export class Photogate2D extends Container {
             .fill(
                 0x555555
             );
+
+
+        this.clearButton.clear();
+
+
+        this.clearButton
+            .roundRect(
+                0,
+                0,
+                20,
+                20,
+                4
+            )
+            .fill(
+                0xf4f4f4
+            )
+            .stroke({
+                width: 1,
+                color: 0x666666,
+            });
     }
 
 
@@ -365,18 +499,18 @@ export class Photogate2D extends Container {
             number
     ) {
 
+        if (
+            this.measurements.length >=
+            this.maxMeasurements
+        ) {
+
+            return;
+        }
+
+
         this.measurements.push(
             seconds
         );
-
-
-        if (
-            this.measurements.length >
-            3
-        ) {
-
-            this.measurements.shift();
-        }
 
 
         this.updateReadings();

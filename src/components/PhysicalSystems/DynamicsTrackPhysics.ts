@@ -26,6 +26,10 @@ export interface DynamicsTrackPhysicsOptions {
 
     frictionCoefficient?: number;
 
+    staticFrictionCoefficient?: number;
+
+    kineticFrictionCoefficient?: number;
+
     collisionType?: CollisionType;
 }
 
@@ -38,7 +42,11 @@ export class DynamicsTrackPhysics {
 
     private readonly gravity: number;
 
-    private _frictionCoefficient: number;
+    private _staticFrictionCoefficient:
+        number;
+
+    private _kineticFrictionCoefficient:
+        number;
 
     private _collisionType:
         CollisionType;
@@ -55,9 +63,14 @@ export class DynamicsTrackPhysics {
     private kinematicVelocities =
         new Map<string, number>();
 
-    private stuckPair:
-        [string, string] | null =
-        null;
+    /*
+     * Each set represents one rigid inelastic
+     * cluster.  A cluster can contain any number
+     * of touching blocks.
+     */
+    private stuckGroups:
+        Set<string>[] =
+        [];
 
 
     constructor({
@@ -68,6 +81,12 @@ export class DynamicsTrackPhysics {
         gravity = 9.81,
 
         frictionCoefficient = 0,
+
+        staticFrictionCoefficient =
+            frictionCoefficient,
+
+        kineticFrictionCoefficient =
+            frictionCoefficient,
 
         collisionType = "elastic",
     }: DynamicsTrackPhysicsOptions) {
@@ -81,8 +100,17 @@ export class DynamicsTrackPhysics {
         this.gravity =
             gravity;
 
-        this._frictionCoefficient =
-            frictionCoefficient;
+        this._staticFrictionCoefficient =
+            Math.max(
+                0,
+                staticFrictionCoefficient
+            );
+
+        this._kineticFrictionCoefficient =
+            Math.max(
+                0,
+                kineticFrictionCoefficient
+            );
 
         this._collisionType =
             collisionType;
@@ -128,16 +156,9 @@ export class DynamicsTrackPhysics {
             id
         );
 
-
-        if (
-            this.stuckPair?.includes(
-                id
-            )
-        ) {
-
-            this.stuckPair =
-                null;
-        }
+        this.removeFromStuckGroup(
+            id
+        );
     }
 
 
@@ -145,20 +166,58 @@ export class DynamicsTrackPhysics {
         deltaTimeSeconds: number
     ) {
 
-        const stuckWithHeldBody =
-            this.stuckPair !== null &&
-            this.stuckPair.some(
-                id =>
-                    this.heldBodies.has(
-                        id
-                    )
-            );
+        const processedGroups =
+            new Set<
+                Set<string>
+            >();
 
 
         for (
             const body
             of this.bodies.values()
         ) {
+
+            const group =
+                this.getStuckGroup(
+                    body.id
+                );
+
+
+            if (group) {
+
+                if (
+                    processedGroups.has(
+                        group
+                    )
+                ) {
+
+                    continue;
+                }
+
+
+                processedGroups.add(
+                    group
+                );
+
+
+                if (
+                    this.groupContainsHeldBody(
+                        group
+                    )
+                ) {
+
+                    continue;
+                }
+
+
+                this.moveStuckGroup(
+                    group,
+                    deltaTimeSeconds
+                );
+
+                continue;
+            }
+
 
             if (
                 this.heldBodies.has(
@@ -170,70 +229,50 @@ export class DynamicsTrackPhysics {
             }
 
 
-            if (
-                stuckWithHeldBody &&
-                this.stuckPair?.includes(
-                    body.id
-                )
-            ) {
-
-                continue;
-            }
+            this.moveFreeBody(
+                body,
+                deltaTimeSeconds
+            );
 
 
-            const acceleration =
-                this.getAcceleration(
-                    body
-                );
-
-
-            body.velocity +=
-                acceleration *
-                deltaTimeSeconds;
-
-
-            body.position +=
-                body.velocity *
-                deltaTimeSeconds;
-        }
-
-
-        if (
-            this.stuckPair
-        ) {
-
-            if (!stuckWithHeldBody) {
-
-                this.updateStuckPair();
-            }
-
-            return;
-        }
-
-
-        for (
-            const body
-            of this.bodies.values()
-        ) {
-
-            if (
-                !this.heldBodies.has(
-                    body.id
-                )
-            ) {
-
-                this.handleEndStops(
-                    body
-                );
-            }
+            this.handleEndStops(
+                body
+            );
         }
 
 
         this.handleBodyCollisions();
     }
 
-    private getAcceleration(
-        body: DynamicsTrackBody
+
+    private moveFreeBody(
+        body: DynamicsTrackBody,
+        deltaTimeSeconds: number
+    ) {
+
+        body.velocity =
+            this.getVelocityAfterForces(
+                body.velocity,
+                deltaTimeSeconds
+            );
+
+
+        body.position +=
+            body.velocity *
+            deltaTimeSeconds;
+    }
+
+
+    /*
+     * Coulomb friction is handled directly as a
+     * velocity change rather than as a raw
+     * acceleration.  This prevents kinetic
+     * friction from numerically overshooting
+     * through v = 0 and producing chatter.
+     */
+    private getVelocityAfterForces(
+        velocity: number,
+        deltaTimeSeconds: number
     ): number {
 
         const gravityAlongTrack =
@@ -243,14 +282,6 @@ export class DynamicsTrackPhysics {
             );
 
 
-        if (
-            this._frictionCoefficient === 0
-        ) {
-
-            return gravityAlongTrack;
-        }
-
-
         const normalAcceleration =
             this.gravity *
             Math.cos(
@@ -258,32 +289,115 @@ export class DynamicsTrackPhysics {
             );
 
 
-        const frictionMagnitude =
-            this._frictionCoefficient *
-            normalAcceleration;
+        const velocityEpsilon =
+            0.000001;
 
 
         if (
             Math.abs(
-                body.velocity
-            ) > 0.0001
+                velocity
+            ) <=
+            velocityEpsilon
         ) {
 
-            return (
+            const maximumStaticFriction =
+                this._staticFrictionCoefficient *
+                normalAcceleration;
+
+
+            if (
+                Math.abs(
+                    gravityAlongTrack
+                ) <=
+                maximumStaticFriction
+            ) {
+
+                return 0;
+            }
+
+
+            const slidingAcceleration =
                 gravityAlongTrack -
                 Math.sign(
-                    body.velocity
+                    gravityAlongTrack
                 ) *
-                frictionMagnitude
+                this._kineticFrictionCoefficient *
+                normalAcceleration;
+
+
+            if (
+                Math.sign(
+                    slidingAcceleration
+                ) !==
+                Math.sign(
+                    gravityAlongTrack
+                )
+            ) {
+
+                return 0;
+            }
+
+
+            return (
+                slidingAcceleration *
+                deltaTimeSeconds
             );
         }
 
 
+        /*
+         * Gravity first changes the velocity.
+         */
+        const gravityVelocity =
+            velocity +
+            gravityAlongTrack *
+            deltaTimeSeconds;
+
+
+        /*
+         * If gravity itself carried the body
+         * through zero, stop exactly at zero.
+         * On the next frame static friction
+         * decides whether it remains there.
+         */
         if (
+            velocity !== 0 &&
+            gravityVelocity !== 0 &&
+            Math.sign(
+                gravityVelocity
+            ) !==
+            Math.sign(
+                velocity
+            )
+        ) {
+
+            return 0;
+        }
+
+
+        const frictionVelocityChange =
+            this._kineticFrictionCoefficient *
+            normalAcceleration *
+            deltaTimeSeconds;
+
+
+        if (
+            frictionVelocityChange <= 0
+        ) {
+
+            return gravityVelocity;
+        }
+
+
+        const speed =
             Math.abs(
-                gravityAlongTrack
-            ) <=
-            frictionMagnitude
+                gravityVelocity
+            );
+
+
+        if (
+            speed <=
+            frictionVelocityChange
         ) {
 
             return 0;
@@ -291,164 +405,259 @@ export class DynamicsTrackPhysics {
 
 
         return (
-            gravityAlongTrack -
             Math.sign(
-                gravityAlongTrack
+                gravityVelocity
             ) *
-            frictionMagnitude
+            (
+                speed -
+                frictionVelocityChange
+            )
+        );
+    }
+
+
+    private moveStuckGroup(
+        group: Set<string>,
+        deltaTimeSeconds: number
+    ) {
+
+        const members =
+            this.getGroupBodies(
+                group
+            );
+
+
+        if (
+            members.length === 0
+        ) {
+
+            this.deleteStuckGroup(
+                group
+            );
+
+            return;
+        }
+
+
+        const commonVelocity =
+            this.getGroupCommonVelocity(
+                members
+            );
+
+
+        const newVelocity =
+            this.getVelocityAfterForces(
+                commonVelocity,
+                deltaTimeSeconds
+            );
+
+
+        const displacement =
+            newVelocity *
+            deltaTimeSeconds;
+
+
+        for (
+            const body
+            of members
+        ) {
+
+            body.velocity =
+                newVelocity;
+
+            body.position +=
+                displacement;
+        }
+
+
+        this.packAndConstrainStuckGroup(
+            group
         );
     }
 
 
     private handleBodyCollisions() {
 
-        const bodies =
-            Array.from(
-                this.bodies.values()
-            );
-
-
-        if (
-            bodies.length < 2
-        ) {
-
-            return;
-        }
-
-
-        bodies.sort(
-            (
-                a,
-                b
-            ) =>
-                a.position -
-                b.position
-        );
-
-
+        /*
+         * More than one pass allows a newly
+         * formed inelastic group to immediately
+         * absorb another touching block during
+         * the same frame.
+         */
         for (
-            let i = 0;
-            i < bodies.length - 1;
-            i++
+            let pass = 0;
+            pass < this.bodies.size;
+            pass++
         ) {
 
-            const left =
-                bodies[i];
-
-            const right =
-                bodies[i + 1];
+            let changed =
+                false;
 
 
-            const minimumDistance =
+            const bodies =
+                Array.from(
+                    this.bodies.values()
+                );
+
+
+            bodies.sort(
                 (
-                    left.width +
-                    right.width
-                ) /
-                2;
-
-
-            const actualDistance =
-                right.position -
-                left.position;
-
-
-            if (
-                actualDistance >
-                minimumDistance
-            ) {
-
-                continue;
-            }
-
-
-            const leftHeld =
-                this.heldBodies.has(
-                    left.id
-                );
-
-            const rightHeld =
-                this.heldBodies.has(
-                    right.id
-                );
-
-
-            if (
-                leftHeld ||
-                rightHeld
-            ) {
-
-                this.resolveCollisionWithHeldBody(
-                    left,
-                    right,
-                    leftHeld,
-                    rightHeld,
-                    minimumDistance
-                );
-
-                continue;
-            }
-
-
-            const overlap =
-                minimumDistance -
-                actualDistance;
-
-
-            if (
-                overlap > 0
-            ) {
-
-                left.position -=
-                    overlap /
-                    2;
-
-                right.position +=
-                    overlap /
-                    2;
-            }
-
-
-            const relativeVelocity =
-                left.velocity -
-                right.velocity;
-
-
-            if (
-                relativeVelocity <= 0
-            ) {
-
-                continue;
-            }
-
-
-            if (
-                this._collisionType ===
-                "elastic"
-            ) {
-
-                this.resolveElasticCollision(
-                    left,
-                    right
-                );
-
-                this.handleEndStops(
-                    left
-                );
-
-                this.handleEndStops(
-                    right
-                );
-
-                continue;
-            }
-
-
-            this.resolveInelasticCollision(
-                left,
-                right
+                    a,
+                    b
+                ) =>
+                    a.position -
+                    b.position
             );
 
-            return;
+
+            for (
+                let i = 0;
+                i < bodies.length - 1;
+                i++
+            ) {
+
+                const left =
+                    bodies[i];
+
+                const right =
+                    bodies[i + 1];
+
+
+                if (
+                    this.areBodiesStuck(
+                        left.id,
+                        right.id
+                    )
+                ) {
+
+                    continue;
+                }
+
+
+                const minimumDistance =
+                    (
+                        left.width +
+                        right.width
+                    ) /
+                    2;
+
+
+                const actualDistance =
+                    right.position -
+                    left.position;
+
+
+                if (
+                    actualDistance >
+                    minimumDistance
+                ) {
+
+                    continue;
+                }
+
+
+                const leftHeld =
+                    this.heldBodies.has(
+                        left.id
+                    );
+
+                const rightHeld =
+                    this.heldBodies.has(
+                        right.id
+                    );
+
+
+                if (
+                    leftHeld ||
+                    rightHeld
+                ) {
+
+                    this.resolveCollisionWithHeldBody(
+                        left,
+                        right,
+                        leftHeld,
+                        rightHeld,
+                        minimumDistance
+                    );
+
+                    changed =
+                        true;
+
+                    continue;
+                }
+
+
+                const overlap =
+                    minimumDistance -
+                    actualDistance;
+
+
+                if (
+                    overlap > 0
+                ) {
+
+                    left.position -=
+                        overlap /
+                        2;
+
+                    right.position +=
+                        overlap /
+                        2;
+                }
+
+
+                const relativeVelocity =
+                    left.velocity -
+                    right.velocity;
+
+
+                if (
+                    relativeVelocity <= 0
+                ) {
+
+                    continue;
+                }
+
+
+                if (
+                    this._collisionType ===
+                    "elastic"
+                ) {
+
+                    this.resolveElasticCollision(
+                        left,
+                        right
+                    );
+
+                    this.handleEndStops(
+                        left
+                    );
+
+                    this.handleEndStops(
+                        right
+                    );
+
+                    changed =
+                        true;
+
+                    continue;
+                }
+
+
+                this.resolveInelasticCollision(
+                    left,
+                    right
+                );
+
+                changed =
+                    true;
+            }
+
+
+            if (!changed) {
+
+                break;
+            }
         }
     }
 
@@ -499,16 +708,10 @@ export class DynamicsTrackPhysics {
             }
 
 
-            left.velocity =
-                0;
-
-            right.velocity =
-                0;
-
-            this.stuckPair = [
-                left.id,
-                right.id,
-            ];
+            this.resolveInelasticCollision(
+                left,
+                right
+            );
 
             return;
         }
@@ -541,17 +744,12 @@ export class DynamicsTrackPhysics {
         }
 
 
-        left.velocity =
-            0;
-
-        right.velocity =
-            0;
-
-        this.stuckPair = [
-            left.id,
-            right.id,
-        ];
+        this.resolveInelasticCollision(
+            left,
+            right
+        );
     }
+
 
     private resolveElasticCollision(
         left: DynamicsTrackBody,
@@ -614,208 +812,459 @@ export class DynamicsTrackPhysics {
         right: DynamicsTrackBody
     ) {
 
+        const ids =
+            new Set<string>();
+
+
+        const leftGroup =
+            this.getStuckGroup(
+                left.id
+            );
+
+        const rightGroup =
+            this.getStuckGroup(
+                right.id
+            );
+
+
+        if (leftGroup) {
+
+            for (
+                const id
+                of leftGroup
+            ) {
+
+                ids.add(
+                    id
+                );
+            }
+        }
+        else {
+
+            ids.add(
+                left.id
+            );
+        }
+
+
+        if (rightGroup) {
+
+            for (
+                const id
+                of rightGroup
+            ) {
+
+                ids.add(
+                    id
+                );
+            }
+        }
+        else {
+
+            ids.add(
+                right.id
+            );
+        }
+
+
+        const members =
+            Array.from(
+                ids
+            )
+            .map(
+                id =>
+                    this.bodies.get(
+                        id
+                    )
+            )
+            .filter(
+                (
+                    body
+                ): body is DynamicsTrackBody =>
+                    body !== undefined
+            );
+
+
         const totalMass =
-            left.mass +
-            right.mass;
+            members.reduce(
+                (
+                    sum,
+                    body
+                ) =>
+                    sum +
+                    body.mass,
+                0
+            );
+
+
+        const totalMomentum =
+            members.reduce(
+                (
+                    sum,
+                    body
+                ) =>
+                    sum +
+                    body.mass *
+                    body.velocity,
+                0
+            );
 
 
         const commonVelocity =
-            (
-                left.mass *
-                left.velocity +
-                right.mass *
-                right.velocity
-            ) /
-            totalMass;
+            totalMass > 0
+                ? totalMomentum /
+                    totalMass
+                : 0;
 
 
-        left.velocity =
-            commonVelocity;
+        for (
+            const body
+            of members
+        ) {
 
-        right.velocity =
-            commonVelocity;
-
-
-        this.stuckPair = [
-            left.id,
-            right.id,
-        ];
+            body.velocity =
+                commonVelocity;
+        }
 
 
-        this.updateStuckPair();
+        const group =
+            this.createOrMergeStuckGroup(
+                ids
+            );
+
+
+        this.packAndConstrainStuckGroup(
+            group
+        );
     }
 
 
-    private updateStuckPair() {
+    private getStuckGroup(
+        id: string
+    ):
+        Set<string> |
+        undefined {
 
-        if (
-            !this.stuckPair
+        return this.stuckGroups.find(
+            group =>
+                group.has(
+                    id
+                )
+        );
+    }
+
+
+    private createOrMergeStuckGroup(
+        ids: Set<string>
+    ): Set<string> {
+
+        const touchingGroups =
+            this.stuckGroups.filter(
+                group =>
+                    Array.from(
+                        ids
+                    ).some(
+                        id =>
+                            group.has(
+                                id
+                            )
+                    )
+            );
+
+
+        const merged =
+            new Set<string>(
+                ids
+            );
+
+
+        for (
+            const group
+            of touchingGroups
         ) {
 
+            for (
+                const id
+                of group
+            ) {
+
+                merged.add(
+                    id
+                );
+            }
+        }
+
+
+        this.stuckGroups =
+            this.stuckGroups.filter(
+                group =>
+                    !touchingGroups.includes(
+                        group
+                    )
+            );
+
+
+        this.stuckGroups.push(
+            merged
+        );
+
+
+        return merged;
+    }
+
+
+    private removeFromStuckGroup(
+        id: string
+    ) {
+
+        const group =
+            this.getStuckGroup(
+                id
+            );
+
+
+        if (!group) {
+
             return;
+        }
+
+
+        group.delete(
+            id
+        );
+
+
+        if (
+            group.size < 2
+        ) {
+
+            this.deleteStuckGroup(
+                group
+            );
+        }
+    }
+
+
+    private deleteStuckGroup(
+        group: Set<string>
+    ) {
+
+        this.stuckGroups =
+            this.stuckGroups.filter(
+                candidate =>
+                    candidate !==
+                    group
+            );
+    }
+
+
+    private groupContainsHeldBody(
+        group: Set<string>
+    ): boolean {
+
+        return Array.from(
+            group
+        ).some(
+            id =>
+                this.heldBodies.has(
+                    id
+                )
+        );
+    }
+
+
+    private getGroupBodies(
+        group: Set<string>
+    ): DynamicsTrackBody[] {
+
+        return Array.from(
+            group
+        )
+        .map(
+            id =>
+                this.bodies.get(
+                    id
+                )
+        )
+        .filter(
+            (
+                body
+            ): body is DynamicsTrackBody =>
+                body !== undefined
+        )
+        .sort(
+            (
+                a,
+                b
+            ) =>
+                a.position -
+                b.position
+        );
+    }
+
+
+    private getGroupCommonVelocity(
+        members:
+            DynamicsTrackBody[]
+    ): number {
+
+        const totalMass =
+            members.reduce(
+                (
+                    sum,
+                    body
+                ) =>
+                    sum +
+                    body.mass,
+                0
+            );
+
+
+        if (
+            totalMass <= 0
+        ) {
+
+            return 0;
+        }
+
+
+        return (
+            members.reduce(
+                (
+                    sum,
+                    body
+                ) =>
+                    sum +
+                    body.mass *
+                    body.velocity,
+                0
+            ) /
+            totalMass
+        );
+    }
+
+
+    private packAndConstrainStuckGroup(
+        group: Set<string>
+    ) {
+
+        const members =
+            this.getGroupBodies(
+                group
+            );
+
+
+        if (
+            members.length < 2
+        ) {
+
+            this.deleteStuckGroup(
+                group
+            );
+
+            return;
+        }
+
+
+        const commonVelocity =
+            this.getGroupCommonVelocity(
+                members
+            );
+
+
+        let leftEdge =
+            members[0].position -
+            members[0].width /
+            2;
+
+
+        for (
+            const body
+            of members
+        ) {
+
+            body.position =
+                leftEdge +
+                body.width /
+                2;
+
+            body.velocity =
+                commonVelocity;
+
+            leftEdge +=
+                body.width;
         }
 
 
         const first =
-            this.bodies.get(
-                this.stuckPair[0]
-            );
+            members[0];
 
-        const second =
-            this.bodies.get(
-                this.stuckPair[1]
-            );
+        const last =
+            members[
+                members.length - 1
+            ];
 
 
-        if (
-            !first ||
-            !second
-        ) {
-
-            this.stuckPair =
-                null;
-
-            return;
-        }
-
-
-        let left =
-            first;
-
-        let right =
-            second;
-
-
-        if (
-            first.position >
-            second.position
-        ) {
-
-            left =
-                second;
-
-            right =
-                first;
-        }
-
-
-        const commonVelocity =
-            (
-                left.mass *
-                left.velocity +
-                right.mass *
-                right.velocity
-            ) /
-            (
-                left.mass +
-                right.mass
-            );
-
-
-        left.velocity =
-            commonVelocity;
-
-        right.velocity =
-            commonVelocity;
-
-
-        const contactDistance =
-            (
-                left.width +
-                right.width
-            ) /
+        const currentLeftEdge =
+            first.position -
+            first.width /
             2;
 
-
-        const midpoint =
-            (
-                left.position +
-                right.position
-            ) /
-            2;
-
-
-        left.position =
-            midpoint -
-            contactDistance /
-            2;
-
-        right.position =
-            midpoint +
-            contactDistance /
-            2;
-
-
-        const leftEdge =
-            left.position -
-            left.width /
-            2;
-
-        const rightEdge =
-            right.position +
-            right.width /
+        const currentRightEdge =
+            last.position +
+            last.width /
             2;
 
 
         if (
-            leftEdge < 0
+            currentLeftEdge < 0
         ) {
 
             const correction =
-                -leftEdge;
+                -currentLeftEdge;
 
 
-            left.position +=
-                correction;
+            for (
+                const body
+                of members
+            ) {
 
-            right.position +=
-                correction;
+                body.position +=
+                    correction;
 
-
-            const bouncedVelocity =
-                Math.abs(
-                    commonVelocity
-                );
-
-
-            left.velocity =
-                bouncedVelocity;
-
-            right.velocity =
-                bouncedVelocity;
+                body.velocity =
+                    Math.abs(
+                        commonVelocity
+                    );
+            }
 
             return;
         }
 
 
         if (
-            rightEdge >
+            currentRightEdge >
             this.trackLength
         ) {
 
             const correction =
-                rightEdge -
+                currentRightEdge -
                 this.trackLength;
 
 
-            left.position -=
-                correction;
+            for (
+                const body
+                of members
+            ) {
 
-            right.position -=
-                correction;
+                body.position -=
+                    correction;
 
-
-            const bouncedVelocity =
-                -Math.abs(
-                    commonVelocity
-                );
-
-
-            left.velocity =
-                bouncedVelocity;
-
-            right.velocity =
-                bouncedVelocity;
+                body.velocity =
+                    -Math.abs(
+                        commonVelocity
+                    );
+            }
         }
     }
 
@@ -870,22 +1319,6 @@ export class DynamicsTrackPhysics {
     }
 
 
-    private releaseStuckPairIfNeeded(
-        id: string
-    ) {
-
-        if (
-            this.stuckPair?.includes(
-                id
-            )
-        ) {
-
-            this.stuckPair =
-                null;
-        }
-    }
-
-
     public setBodyHeld(
         id: string,
         held: boolean
@@ -898,6 +1331,7 @@ export class DynamicsTrackPhysics {
 
 
         if (!body) {
+
             return;
         }
 
@@ -913,34 +1347,30 @@ export class DynamicsTrackPhysics {
                 0
             );
 
-            body.velocity =
-                0;
 
-
-            if (
-                this.stuckPair?.includes(
+            const group =
+                this.getStuckGroup(
                     id
-                )
-            ) {
-
-                const otherId =
-                    this.stuckPair[
-                        this.stuckPair[0] === id
-                            ? 1
-                            : 0
-                    ];
-
-                const other =
-                    this.bodies.get(
-                        otherId
-                    );
+                );
 
 
-                if (other) {
+            if (group) {
 
-                    other.velocity =
+                for (
+                    const member
+                    of this.getGroupBodies(
+                        group
+                    )
+                ) {
+
+                    member.velocity =
                         0;
                 }
+            }
+            else {
+
+                body.velocity =
+                    0;
             }
 
             return;
@@ -956,6 +1386,7 @@ export class DynamicsTrackPhysics {
         );
     }
 
+
     public dragBodyTo(
         id: string,
         targetPosition: number,
@@ -969,6 +1400,7 @@ export class DynamicsTrackPhysics {
 
 
         if (!body) {
+
             return targetPosition;
         }
 
@@ -995,78 +1427,135 @@ export class DynamicsTrackPhysics {
             );
 
 
-        if (
-            this.stuckPair?.includes(
+        const group =
+            this.getStuckGroup(
                 id
-            )
-        ) {
+            );
 
-            const otherId =
-                this.stuckPair[
-                    this.stuckPair[0] === id
-                        ? 1
-                        : 0
-                ];
 
-            const other =
-                this.bodies.get(
-                    otherId
+        if (group) {
+
+            const members =
+                this.getGroupBodies(
+                    group
                 );
 
 
-            if (other) {
-
-                const bodyIsLeft =
-                    body.position <
-                    other.position;
-
-
-                const draggingAway =
-                    bodyIsLeft
-                        ? target <
-                            body.position
-                        : target >
-                            body.position;
+            const index =
+                members.findIndex(
+                    member =>
+                        member.id ===
+                        id
+                );
 
 
-                if (draggingAway) {
+            const isLeftEnd =
+                index === 0;
 
-                    this.stuckPair =
-                        null;
+            const isRightEnd =
+                index ===
+                members.length - 1;
 
-                    other.velocity =
-                        0;
 
-                    body.position =
-                        target;
+            const draggingAway =
+                (
+                    isLeftEnd &&
+                    target <
+                        body.position
+                ) ||
+                (
+                    isRightEnd &&
+                    target >
+                        body.position
+                );
 
-                    body.velocity =
-                        dragVelocity;
 
-                    return target;
+            if (draggingAway) {
+
+                this.removeFromStuckGroup(
+                    id
+                );
+
+
+                body.position =
+                    target;
+
+                body.velocity =
+                    dragVelocity;
+
+
+                const remainingGroup =
+                    members
+                    .filter(
+                        member =>
+                            member.id !==
+                            id
+                    )
+                    .map(
+                        member =>
+                            member.id
+                    );
+
+
+                if (
+                    remainingGroup.length >= 2
+                ) {
+
+                    const remaining =
+                        this.getStuckGroup(
+                            remainingGroup[0]
+                        );
+
+
+                    if (remaining) {
+
+                        for (
+                            const member
+                            of this.getGroupBodies(
+                                remaining
+                            )
+                        ) {
+
+                            member.velocity =
+                                0;
+                        }
+                    }
+                }
+                else if (
+                    remainingGroup.length === 1
+                ) {
+
+                    const remainingBody =
+                        this.bodies.get(
+                            remainingGroup[0]
+                        );
+
+
+                    if (remainingBody) {
+
+                        remainingBody.velocity =
+                            0;
+                    }
                 }
 
 
-                return this.moveStuckPairFromDragged(
-                    body,
-                    other,
-                    target,
-                    dragVelocity
-                );
+                return target;
             }
 
 
-            this.stuckPair =
-                null;
+            return this.moveStuckGroupFromDragged(
+                body,
+                group,
+                target,
+                dragVelocity
+            );
         }
 
 
         const other =
-            Array.from(
-                this.bodies.values()
-            ).find(
-                candidate =>
-                    candidate.id !== id
+            this.findFirstBodyInDragPath(
+                body,
+                target
             );
 
 
@@ -1149,87 +1638,43 @@ export class DynamicsTrackPhysics {
                 body.position =
                     contactPosition;
 
-                this.stuckPair = [
-                    body.id,
-                    other.id,
-                ];
+                body.velocity =
+                    dragVelocity;
 
-                return this.moveStuckPairFromDragged(
+                other.velocity =
+                    dragVelocity;
+
+
+                const newGroup =
+                    this.createOrMergeStuckGroup(
+                        new Set([
+                            body.id,
+                            other.id,
+                        ])
+                    );
+
+
+                return this.moveStuckGroupFromDragged(
                     body,
-                    other,
+                    newGroup,
                     target,
                     dragVelocity
                 );
             }
 
 
-            const otherRightLimit =
-                this.trackLength -
-                other.width /
-                2;
-
-
-            const otherTouchingStopper =
-                other.position >=
-                otherRightLimit -
-                0.0001;
-
-
-            if (
-                otherTouchingStopper
-            ) {
-
-                other.position =
-                    otherRightLimit;
-
-                other.velocity =
-                    0;
-
-
-                target =
-                    other.position -
-                    minimumDistance;
-
-
-                body.position =
-                    target;
-
-                body.velocity =
-                    dragVelocity;
-
-                return target;
-            }
-
-
-            other.position =
-                Math.min(
-                    target +
-                        minimumDistance,
-                    otherRightLimit
-                );
-
-            other.velocity =
-                dragVelocity;
-
-
-            target =
-                other.position -
-                minimumDistance;
-
-
-            body.position =
-                target;
-
-            body.velocity =
-                dragVelocity;
-
-            return target;
+            return this.moveElasticChainFromDragged(
+                body,
+                target,
+                1,
+                dragVelocity
+            );
         }
 
 
         const contactPosition =
             other.position +
-                minimumDistance;
+            minimumDistance;
 
 
         if (
@@ -1275,151 +1720,417 @@ export class DynamicsTrackPhysics {
             body.position =
                 contactPosition;
 
-            this.stuckPair = [
-                other.id,
-                body.id,
-            ];
+            body.velocity =
+                dragVelocity;
 
-            return this.moveStuckPairFromDragged(
+            other.velocity =
+                dragVelocity;
+
+
+            const newGroup =
+                this.createOrMergeStuckGroup(
+                    new Set([
+                        body.id,
+                        other.id,
+                    ])
+                );
+
+
+            return this.moveStuckGroupFromDragged(
                 body,
-                other,
+                newGroup,
                 target,
                 dragVelocity
             );
         }
 
 
-        const otherLeftLimit =
-            other.width /
-            2;
+        return this.moveElasticChainFromDragged(
+            body,
+            target,
+            -1,
+            dragVelocity
+        );
+    }
 
 
-        const otherTouchingStopper =
-            other.position <=
-            otherLeftLimit +
-            0.0001;
+    private moveElasticChainFromDragged(
+        body: DynamicsTrackBody,
+        targetPosition: number,
+        direction: 1 | -1,
+        dragVelocity: number
+    ): number {
+
+        const result =
+            this.moveElasticBodyInChain(
+                body,
+                targetPosition,
+                direction,
+                dragVelocity,
+                body.id,
+                new Set<string>()
+            );
 
 
+        return result.position;
+    }
+
+
+    private moveElasticBodyInChain(
+        body: DynamicsTrackBody,
+        desiredPosition: number,
+        direction: 1 | -1,
+        dragVelocity: number,
+        draggedBodyId: string,
+        visited: Set<string>
+    ): {
+        position: number;
+        blocked: boolean;
+    } {
+
+        visited.add(
+            body.id
+        );
+
+
+        /*
+         * Another held body is an immovable
+         * obstacle.  The original dragged body
+         * is, of course, allowed to move.
+         */
         if (
-            otherTouchingStopper
+            body.id !==
+                draggedBodyId &&
+            this.heldBodies.has(
+                body.id
+            )
         ) {
 
-            other.position =
-                otherLeftLimit;
-
-            other.velocity =
+            body.velocity =
                 0;
 
 
-            target =
-                other.position +
-                minimumDistance;
+            return {
+                position:
+                    body.position,
 
+                blocked:
+                    true,
+            };
+        }
+
+
+        const halfWidth =
+            body.width /
+            2;
+
+        const leftLimit =
+            halfWidth;
+
+        const rightLimit =
+            this.trackLength -
+            halfWidth;
+
+
+        let target =
+            Math.max(
+                leftLimit,
+                Math.min(
+                    rightLimit,
+                    desiredPosition
+                )
+            );
+
+
+        const stopperBlocked =
+            (
+                direction === 1 &&
+                desiredPosition >
+                    rightLimit
+            ) ||
+            (
+                direction === -1 &&
+                desiredPosition <
+                    leftLimit
+            );
+
+
+        const next =
+            Array.from(
+                this.bodies.values()
+            )
+            .filter(
+                candidate =>
+                    !visited.has(
+                        candidate.id
+                    ) &&
+                    (
+                        direction === 1
+                            ? candidate.position >
+                                body.position
+                            : candidate.position <
+                                body.position
+                    )
+            )
+            .sort(
+                (a, b) =>
+                    direction === 1
+                        ? a.position -
+                            b.position
+                        : b.position -
+                            a.position
+            )[0];
+
+
+        if (!next) {
 
             body.position =
                 target;
 
             body.velocity =
-                dragVelocity;
+                stopperBlocked
+                    ? 0
+                    : dragVelocity;
 
-            return target;
+
+            return {
+                position:
+                    target,
+
+                blocked:
+                    stopperBlocked,
+            };
         }
 
 
-        other.position =
-            Math.max(
-                target -
-                    minimumDistance,
-                otherLeftLimit
-            );
+        const minimumDistance =
+            (
+                body.width +
+                next.width
+            ) /
+            2;
 
-        other.velocity =
-            dragVelocity;
+        const contactPosition =
+            next.position -
+            direction *
+            minimumDistance;
+
+        const reachesNext =
+            direction === 1
+                ? target >
+                    contactPosition
+                : target <
+                    contactPosition;
+
+
+        if (!reachesNext) {
+
+            body.position =
+                target;
+
+            body.velocity =
+                stopperBlocked
+                    ? 0
+                    : dragVelocity;
+
+
+            return {
+                position:
+                    target,
+
+                blocked:
+                    stopperBlocked,
+            };
+        }
+
+
+        const desiredNextPosition =
+            target +
+            direction *
+            minimumDistance;
+
+        const nextResult =
+            this.moveElasticBodyInChain(
+                next,
+                desiredNextPosition,
+                direction,
+                dragVelocity,
+                draggedBodyId,
+                visited
+            );
 
 
         target =
-            other.position +
-                minimumDistance;
+            nextResult.position -
+            direction *
+            minimumDistance;
 
 
         body.position =
             target;
 
         body.velocity =
-            dragVelocity;
+            nextResult.blocked
+                ? 0
+                : dragVelocity;
 
-        return target;
+
+        return {
+            position:
+                target,
+
+            blocked:
+                nextResult.blocked,
+        };
     }
 
 
-    private moveStuckPairFromDragged(
+    private findFirstBodyInDragPath(
+        body: DynamicsTrackBody,
+        target: number
+    ):
+        DynamicsTrackBody |
+        undefined {
+
+        const candidates =
+            Array.from(
+                this.bodies.values()
+            )
+            .filter(
+                candidate =>
+                    candidate.id !==
+                    body.id
+            );
+
+
+        if (
+            target >
+            body.position
+        ) {
+
+            return candidates
+                .filter(
+                    candidate =>
+                        candidate.position >
+                        body.position
+                )
+                .sort(
+                    (
+                        a,
+                        b
+                    ) =>
+                        a.position -
+                        b.position
+                )[0];
+        }
+
+
+        if (
+            target <
+            body.position
+        ) {
+
+            return candidates
+                .filter(
+                    candidate =>
+                        candidate.position <
+                        body.position
+                )
+                .sort(
+                    (
+                        a,
+                        b
+                    ) =>
+                        b.position -
+                        a.position
+                )[0];
+        }
+
+
+        return undefined;
+    }
+
+
+    private moveStuckGroupFromDragged(
         dragged: DynamicsTrackBody,
-        other: DynamicsTrackBody,
+        group: Set<string>,
         targetPosition: number,
         dragVelocity: number
     ): number {
 
-        const draggedIsLeft =
-            dragged.position <
-            other.position;
+        const members =
+            this.getGroupBodies(
+                group
+            );
 
 
-        const distance =
-            (
-                dragged.width +
-                other.width
-            ) /
+        if (
+            members.length === 0
+        ) {
+
+            return targetPosition;
+        }
+
+
+        const delta =
+            targetPosition -
+            dragged.position;
+
+
+        const first =
+            members[0];
+
+        const last =
+            members[
+                members.length - 1
+            ];
+
+
+        const leftEdge =
+            first.position -
+            first.width /
+            2;
+
+        const rightEdge =
+            last.position +
+            last.width /
             2;
 
 
-        if (draggedIsLeft) {
+        const minimumDelta =
+            -leftEdge;
 
-            const maximumDraggedPosition =
-                this.trackLength -
-                other.width /
-                2 -
-                distance;
+        const maximumDelta =
+            this.trackLength -
+            rightEdge;
 
 
-            dragged.position =
+        const allowedDelta =
+            Math.max(
+                minimumDelta,
                 Math.min(
-                    targetPosition,
-                    maximumDraggedPosition
-                );
+                    maximumDelta,
+                    delta
+                )
+            );
 
-            other.position =
-                dragged.position +
-                distance;
+
+        for (
+            const member
+            of members
+        ) {
+
+            member.position +=
+                allowedDelta;
+
+            member.velocity =
+                dragVelocity;
         }
-        else {
-
-            const minimumDraggedPosition =
-                other.width /
-                2 +
-                distance;
-
-
-            dragged.position =
-                Math.max(
-                    targetPosition,
-                    minimumDraggedPosition
-                );
-
-            other.position =
-                dragged.position -
-                distance;
-        }
-
-
-        dragged.velocity =
-            dragVelocity;
-
-        other.velocity =
-            dragVelocity;
 
 
         return dragged.position;
     }
+
 
     public setBodyPosition(
         id: string,
@@ -1433,11 +2144,12 @@ export class DynamicsTrackPhysics {
 
 
         if (!body) {
+
             return;
         }
 
 
-        this.releaseStuckPairIfNeeded(
+        this.removeFromStuckGroup(
             id
         );
 
@@ -1459,46 +2171,38 @@ export class DynamicsTrackPhysics {
 
 
         if (!body) {
+
             return;
         }
 
 
-        if (
-            this.stuckPair?.includes(
+        const group =
+            this.getStuckGroup(
                 id
-            )
-        ) {
-
-            const first =
-                this.bodies.get(
-                    this.stuckPair[0]
-                );
-
-            const second =
-                this.bodies.get(
-                    this.stuckPair[1]
-                );
+            );
 
 
-            if (
-                first &&
-                second
+        if (group) {
+
+            for (
+                const member
+                of this.getGroupBodies(
+                    group
+                )
             ) {
 
-                first.velocity =
+                member.velocity =
                     velocity;
-
-                second.velocity =
-                    velocity;
-
-                return;
             }
+
+            return;
         }
 
 
         body.velocity =
             velocity;
     }
+
 
     public setBodyMass(
         id: string,
@@ -1512,6 +2216,7 @@ export class DynamicsTrackPhysics {
 
 
         if (!body) {
+
             return;
         }
 
@@ -1536,19 +2241,16 @@ export class DynamicsTrackPhysics {
         secondId: string
     ): boolean {
 
-        if (
-            !this.stuckPair
-        ) {
-
-            return false;
-        }
+        const group =
+            this.getStuckGroup(
+                firstId
+            );
 
 
         return (
-            this.stuckPair.includes(
-                firstId
-            ) &&
-            this.stuckPair.includes(
+            group !==
+                undefined &&
+            group.has(
                 secondId
             )
         );
@@ -1568,7 +2270,38 @@ export class DynamicsTrackPhysics {
         frictionCoefficient: number
     ) {
 
-        this._frictionCoefficient =
+        const coefficient =
+            Math.max(
+                0,
+                frictionCoefficient
+            );
+
+
+        this._staticFrictionCoefficient =
+            coefficient;
+
+        this._kineticFrictionCoefficient =
+            coefficient;
+    }
+
+
+    public setStaticFrictionCoefficient(
+        frictionCoefficient: number
+    ) {
+
+        this._staticFrictionCoefficient =
+            Math.max(
+                0,
+                frictionCoefficient
+            );
+    }
+
+
+    public setKineticFrictionCoefficient(
+        frictionCoefficient: number
+    ) {
+
+        this._kineticFrictionCoefficient =
             Math.max(
                 0,
                 frictionCoefficient
@@ -1583,8 +2316,8 @@ export class DynamicsTrackPhysics {
         this._collisionType =
             collisionType;
 
-        this.stuckPair =
-            null;
+        this.stuckGroups =
+            [];
     }
 
 
@@ -1596,7 +2329,21 @@ export class DynamicsTrackPhysics {
 
     public get frictionCoefficient(): number {
 
-        return this._frictionCoefficient;
+        return this._kineticFrictionCoefficient;
+    }
+
+
+    public get staticFrictionCoefficient():
+        number {
+
+        return this._staticFrictionCoefficient;
+    }
+
+
+    public get kineticFrictionCoefficient():
+        number {
+
+        return this._kineticFrictionCoefficient;
     }
 
 

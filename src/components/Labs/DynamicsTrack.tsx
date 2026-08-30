@@ -21,12 +21,16 @@ import {
 } from "../Objects/DynamicsTrack2D";
 
 import {
+    Ruler2D,
+} from "../Objects/Ruler2D";
+
+import {
     GlidingBlock2D,
 } from "../Objects/GlidingBlock2D";
 
 import {
-    SizeControl,
-} from "../Objects/SizeControl";
+    ValueControl,
+} from "../Objects/ValueControl";
 
 import {
     CollisionTypeControl,
@@ -47,15 +51,25 @@ const PIXELS_PER_METER =
 const TRACK_LENGTH =
     2.4;
 
-const BLOCK_WIDTH_PIXELS =
+const REFERENCE_MASS =
+    4;
+
+const REFERENCE_BLOCK_SIZE_PIXELS =
     70;
 
-const BLOCK_HEIGHT_PIXELS =
-    50;
 
-const BLOCK_WIDTH_METERS =
-    BLOCK_WIDTH_PIXELS /
-    PIXELS_PER_METER;
+function getBlockSizePixels(
+    mass: number
+) {
+
+    return (
+        REFERENCE_BLOCK_SIZE_PIXELS *
+        Math.cbrt(
+            mass /
+            REFERENCE_MASS
+        )
+    );
+}
 
 const RELEASE_VELOCITY_SAMPLE_MS =
     120;
@@ -66,19 +80,31 @@ const MIN_RELEASE_SAMPLE_MS =
 const MAX_RELEASE_SPEED =
     6;
 
-const PHOTOGATE_INITIAL_POSITION =
-    TRACK_LENGTH /
-    2;
+const PHOTOGATE_INITIAL_POSITIONS = [
+    TRACK_LENGTH / 4,
+    TRACK_LENGTH * 3 / 4,
+];
 
-const BLOCK_1_INITIAL_POSITION = {
-    x: 260,
-    y: 170,
+const FACTORY_POSITION = {
+    x: 225,
+    y: 55,
 };
 
-const BLOCK_2_INITIAL_POSITION = {
-    x: 620,
-    y: 170,
-};
+
+interface LabBlock {
+
+    visual: GlidingBlock2D;
+
+    attached: boolean;
+}
+
+
+interface ActivePhotogateObject {
+
+    ids: Set<string>;
+
+    enteredAt: number;
+}
 
 
 function DynamicsTrackContents() {
@@ -93,26 +119,34 @@ function DynamicsTrackContents() {
             DynamicsTrack2D | null
         >(null);
 
-    const block1Ref =
+    const blocksRef =
         useRef<
-            GlidingBlock2D | null
-        >(null);
-
-    const block2Ref =
-        useRef<
-            GlidingBlock2D | null
-        >(null);
-
-    const photogateRef =
-        useRef<
-            Photogate2D | null
-        >(null);
-
-    const photogateBlockedRef =
-        useRef<
-            Map<string, number>
+            Map<
+                string,
+                LabBlock
+            >
         >(
             new Map()
+        );
+
+    const photogatesRef =
+        useRef<
+            Photogate2D[]
+        >(
+            []
+        );
+
+    const activePhotogateObjectsRef =
+        useRef<
+            (
+                ActivePhotogateObject |
+                null
+            )[]
+        >(
+            [
+                null,
+                null,
+            ]
         );
 
     const simulationTimeRef =
@@ -127,11 +161,28 @@ function DynamicsTrackContents() {
                 Experiment2D
         ) => {
 
+            const ruler =
+                new Ruler2D(
+                    1,
+                    {
+                        x: 50,
+                        y: 395,
+                    },
+                    PIXELS_PER_METER,
+                    "vertical"
+                );
+
+
+            experiment.add(
+                ruler
+            );
+
+
             const track =
                 new DynamicsTrack2D({
                     position: {
                         x: 120,
-                        y: 430,
+                        y: 395,
                     },
 
                     length:
@@ -139,6 +190,10 @@ function DynamicsTrackContents() {
 
                     pixelsPerMeter:
                         PIXELS_PER_METER,
+
+                    maxAngleRadians:
+                        Math.PI /
+                        12,
                 });
 
 
@@ -162,54 +217,236 @@ function DynamicsTrackContents() {
                 physics;
 
 
-            const photogatePoint =
-                track.getPointAt(
-                    PHOTOGATE_INITIAL_POSITION
+            const photogates =
+                PHOTOGATE_INITIAL_POSITIONS.map(
+                    (
+                        trackPosition,
+                        index
+                    ) => {
+
+                        const point =
+                            track.getPointAt(
+                                trackPosition
+                            );
+
+
+                        const photogate =
+                            new Photogate2D({
+                                position: {
+                                    x:
+                                        point.x,
+
+                                    y:
+                                        point.y,
+                                },
+
+                                trackPosition,
+
+                                label:
+                                    `G${index + 1}`,
+
+                                maxMeasurements:
+                                    3,
+
+                                onClear:
+                                    () => {
+
+                                        activePhotogateObjectsRef.current[
+                                            index
+                                        ] =
+                                            null;
+                                    },
+                            });
+
+
+                        photogate.setTrackRotation(
+                            track.angleRadians
+                        );
+
+
+                        experiment.add(
+                            photogate
+                        );
+
+
+                        return photogate;
+                    }
                 );
 
 
-            const photogate =
-                new Photogate2D({
-                    position: {
-                        x:
-                            photogatePoint.x,
-
-                        y:
-                            photogatePoint.y,
-                    },
-
-                    trackPosition:
-                        PHOTOGATE_INITIAL_POSITION,
-                });
-
-
-            photogate.setTrackRotation(
-                track.angleRadians
-            );
-
-
-            photogateRef.current =
-                photogate;
-
-
-            experiment.add(
-                photogate
-            );
+            photogatesRef.current =
+                photogates;
 
 
             const clearPhotogate =
+                (
+                    index: number
+                ) => {
+
+                    photogates[
+                        index
+                    ]?.clearMeasurements();
+
+
+                    activePhotogateObjectsRef.current[
+                        index
+                    ] =
+                        null;
+                };
+
+
+            const clearAllPhotogates =
                 () => {
 
-                    photogate.clearMeasurements();
+                    for (
+                        let index = 0;
+                        index <
+                            photogates.length;
+                        index++
+                    ) {
 
-                    photogateBlockedRef.current.clear();
+                        clearPhotogate(
+                            index
+                        );
+                    }
                 };
+
+
+            const getBlockCenterPoint =
+                (
+                    trackPosition:
+                        number,
+
+                    visual:
+                        GlidingBlock2D
+                ) => {
+
+                    const surfacePoint =
+                        track.getPointAt(
+                            trackPosition
+                        );
+
+
+                    const halfHeight =
+                        visual.blockHeight /
+                        2;
+
+
+                    return new Point(
+                        surfacePoint.x +
+                            Math.sin(
+                                track.angleRadians
+                            ) *
+                            halfHeight,
+
+                        surfacePoint.y -
+                            Math.cos(
+                                track.angleRadians
+                            ) *
+                            halfHeight
+                    );
+                };
+
+
+            const updateObjectsForTrackAngle =
+                () => {
+
+                    physics.setAngle(
+                        track.angleRadians
+                    );
+
+
+                    for (
+                        const photogate
+                        of photogates
+                    ) {
+
+                        const currentPhotogatePoint =
+                            track.getPointAt(
+                                photogate.trackPosition
+                            );
+
+
+                        photogate.position.set(
+                            currentPhotogatePoint.x,
+                            currentPhotogatePoint.y
+                        );
+
+
+                        photogate.setTrackRotation(
+                            track.angleRadians
+                        );
+                    }
+
+
+                    for (
+                        const {
+                            visual,
+                            attached,
+                        }
+                        of blocksRef.current.values()
+                    ) {
+
+                        if (!attached) {
+                            continue;
+                        }
+
+
+                        const body =
+                            physics.getBody(
+                                visual.id
+                            );
+
+
+                        if (!body) {
+                            continue;
+                        }
+
+
+                        const point =
+                            getBlockCenterPoint(
+                                body.position,
+                                visual
+                            );
+
+
+                        visual.position.set(
+                            point.x,
+                            point.y
+                        );
+
+
+                        visual.setTrackRotation(
+                            track.angleRadians
+                        );
+                    }
+
+
+                    clearAllPhotogates();
+                };
+
+
+            track.setOnAngleChanged(
+                updateObjectsForTrackAngle
+            );
 
 
             const movePhotogate =
                 (
+                    index: number,
                     point: Point
                 ) => {
+
+                    const photogate =
+                        photogates[
+                            index
+                        ];
+
+
+                    if (!photogate) {
+                        return;
+                    }
+
 
                     const trackPosition =
                         track.clampPosition(
@@ -241,75 +478,45 @@ function DynamicsTrackContents() {
                     );
 
 
-                    clearPhotogate();
+                    clearPhotogate(
+                        index
+                    );
                 };
 
 
-            photogate.setOnDragMove(
-                movePhotogate
+            photogates.forEach(
+                (
+                    photogate,
+                    index
+                ) => {
+
+                    const move =
+                        (
+                            point: Point
+                        ) => {
+
+                            movePhotogate(
+                                index,
+                                point
+                            );
+                        };
+
+
+                    photogate.setOnDragMove(
+                        move
+                    );
+
+                    photogate.setOnDragEnd(
+                        move
+                    );
+                }
             );
-
-            photogate.setOnDragEnd(
-                movePhotogate
-            );
-
-
-            const block1 =
-                new GlidingBlock2D({
-                    id: "block1",
-
-                    position:
-                        BLOCK_1_INITIAL_POSITION,
-
-                    mass: 2,
-
-                    width:
-                        BLOCK_WIDTH_PIXELS,
-
-                    height:
-                        BLOCK_HEIGHT_PIXELS,
-                });
-
-
-            const block2 =
-                new GlidingBlock2D({
-                    id: "block2",
-
-                    position:
-                        BLOCK_2_INITIAL_POSITION,
-
-                    mass: 4,
-
-                    width:
-                        BLOCK_WIDTH_PIXELS,
-
-                    height:
-                        BLOCK_HEIGHT_PIXELS,
-                });
-
-
-            block1Ref.current =
-                block1;
-
-            block2Ref.current =
-                block2;
-
-
-            experiment.add(
-                block1
-            );
-
-            experiment.add(
-                block2
-            );
-
-
-            const attachedBlocks =
-                new Set<string>();
 
 
             interface DragSample {
+
                 position: number;
+
                 time: number;
             }
 
@@ -458,200 +665,65 @@ function DynamicsTrackContents() {
                 };
 
 
-            const resetExperiment = () => {
+            let nextBlockNumber =
+                1;
 
-                attachedBlocks.clear();
+            let selectedMass =
+                2;
 
-                dragSamples.clear();
-
-                clearPhotogate();
-
-                physics.removeBody(
-                    block1.id
-                );
-
-                physics.removeBody(
-                    block2.id
-                );
+            let factoryBlock:
+                GlidingBlock2D | null =
+                null;
 
 
-                block1.position.set(
-                    BLOCK_1_INITIAL_POSITION.x,
-                    BLOCK_1_INITIAL_POSITION.y
-                );
-
-                block2.position.set(
-                    BLOCK_2_INITIAL_POSITION.x,
-                    BLOCK_2_INITIAL_POSITION.y
-                );
-
-
-                block1.setTrackRotation(
-                    0
-                );
-
-                block2.setTrackRotation(
-                    0
-                );
-            };
-
-
-
-            const collisionTypeControl =
-                new CollisionTypeControl({
-                    position: {
-                        x: 340,
-                        y: 160,
-                    },
-
-                    value:
-                        "elastic",
-
-                    onValueChanged:
-                        (
-                            value
-                        ) => {
-
-                            physics.setCollisionType(
-                                value
-                            );
-
-                            resetExperiment();
-                        },
-                });
-
-
-            experiment.add(
-                collisionTypeControl
-            );
-
-
-            const block1MassControl =
-                new SizeControl({
-                    showLabel:
-                        false,
-
-                    min: 1,
-                    max: 7,
-
-                    value: 2,
-
-                    showUnlimitedSupply:
-                        false,
-
-                    position: {
-                        x: 100,
-                        y: 60,
-                    },
-
-                    onValueChanged:
-                        (
-                            value,
-                            isRandom
-                        ) => {
-
-                            resetExperiment();
-
-
-                            if (isRandom) {
-
-                                const mass =
-                                    1 +
-                                    Math.floor(
-                                        Math.random() *
-                                        7
-                                    );
-
-
-                                block1.setMass(
-                                    mass,
-                                    "x"
-                                );
-
-                                return;
-                            }
-
-
-                            block1.setMass(
-                                value
-                            );
-                        },
-                });
-
-
-            const block2MassControl =
-                new SizeControl({
-                    showLabel:
-                        false,
-
-                    min: 1,
-                    max: 7,
-
-                    value: 4,
-
-                    showUnlimitedSupply:
-                        false,
-
-                    position: {
-                        x: 500,
-                        y: 60,
-                    },
-
-                    onValueChanged:
-                        (
-                            value,
-                            isRandom
-                        ) => {
-
-                            resetExperiment();
-
-
-                            if (isRandom) {
-
-                                const mass =
-                                    1 +
-                                    Math.floor(
-                                        Math.random() *
-                                        7
-                                    );
-
-
-                                block2.setMass(
-                                    mass,
-                                    "y"
-                                );
-
-                                return;
-                            }
-
-
-                            block2.setMass(
-                                value
-                            );
-                        },
-                });
-
-
-            experiment.add(
-                block1MassControl
-            );
-
-            experiment.add(
-                block2MassControl
-            );
+            let createFactoryBlock:
+                () => void;
 
 
             const setupBlockDragging =
                 (
                     block:
-                        GlidingBlock2D
+                        GlidingBlock2D,
+
+                    startsAsFactory:
+                        boolean
                 ) => {
+
+                    let isFactory =
+                        startsAsFactory;
+
 
                     block.setOnDragStart(
                         (
                             _,
                             point
                         ) => {
+
+                            if (isFactory) {
+
+                                isFactory =
+                                    false;
+
+
+                                blocksRef.current.set(
+                                    block.id,
+                                    {
+                                        visual:
+                                            block,
+
+                                        attached:
+                                            false,
+                                    }
+                                );
+
+
+                                factoryBlock =
+                                    null;
+
+
+                                createFactoryBlock();
+                            }
+
 
                             dragSamples.set(
                                 block.id,
@@ -665,10 +737,14 @@ function DynamicsTrackContents() {
                             );
 
 
-                            if (
-                                attachedBlocks.has(
+                            const labBlock =
+                                blocksRef.current.get(
                                     block.id
-                                )
+                                );
+
+
+                            if (
+                                labBlock?.attached
                             ) {
 
                                 physics.setBodyHeld(
@@ -692,10 +768,14 @@ function DynamicsTrackContents() {
                             );
 
 
-                            if (
-                                !attachedBlocks.has(
+                            const labBlock =
+                                blocksRef.current.get(
                                     block.id
-                                )
+                                );
+
+
+                            if (
+                                !labBlock?.attached
                             ) {
 
                                 block.position.set(
@@ -730,16 +810,15 @@ function DynamicsTrackContents() {
 
 
                             const screenPoint =
-                                track.getPointAt(
-                                    trackPosition
+                                getBlockCenterPoint(
+                                    trackPosition,
+                                    block
                                 );
 
 
                             block.position.set(
                                 screenPoint.x,
-                                screenPoint.y -
-                                    BLOCK_HEIGHT_PIXELS /
-                                    2
+                                screenPoint.y
                             );
                         }
                     );
@@ -763,10 +842,24 @@ function DynamicsTrackContents() {
                                 );
 
 
-                            if (
-                                attachedBlocks.has(
+                            const labBlock =
+                                blocksRef.current.get(
                                     block.id
-                                )
+                                );
+
+
+                            if (!labBlock) {
+
+                                dragSamples.delete(
+                                    block.id
+                                );
+
+                                return;
+                            }
+
+
+                            if (
+                                labBlock.attached
                             ) {
 
                                 const requestedTrackPosition =
@@ -847,16 +940,16 @@ function DynamicsTrackContents() {
                                 );
 
 
-                            attachedBlocks.add(
-                                block.id
-                            );
+                            labBlock.attached =
+                                true;
 
 
                             physics.addBody(
                                 block.id,
                                 block.mass,
                                 trackPosition,
-                                BLOCK_WIDTH_METERS
+                                block.blockWidth /
+                                    PIXELS_PER_METER
                             );
 
 
@@ -886,16 +979,15 @@ function DynamicsTrackContents() {
 
 
                             const screenPoint =
-                                track.getPointAt(
-                                    actualTrackPosition
+                                getBlockCenterPoint(
+                                    actualTrackPosition,
+                                    block
                                 );
 
 
                             block.position.set(
                                 screenPoint.x,
-                                screenPoint.y -
-                                    BLOCK_HEIGHT_PIXELS /
-                                    2
+                                screenPoint.y
                             );
 
 
@@ -912,13 +1004,261 @@ function DynamicsTrackContents() {
                 };
 
 
-            setupBlockDragging(
-                block1
+            createFactoryBlock =
+                () => {
+
+                    const mass =
+                        selectedMass;
+
+                    const size =
+                        getBlockSizePixels(
+                            mass
+                        );
+
+
+                    const block =
+                        new GlidingBlock2D({
+                            id:
+                                `block-${nextBlockNumber++}`,
+
+                            position:
+                                FACTORY_POSITION,
+
+                            mass,
+
+                            width:
+                                size,
+
+                            height:
+                                size,
+                        });
+
+
+                    factoryBlock =
+                        block;
+
+
+                    setupBlockDragging(
+                        block,
+                        true
+                    );
+
+
+                    experiment.add(
+                        block
+                    );
+                };
+
+
+            const massControl =
+                new ValueControl({
+                    label:
+                        "Mass, kg",
+
+                    min: 1,
+                    max: 5,
+
+                    value: 2,
+
+                    showRandom:
+                        false,
+
+                    showUnlimitedSupply:
+                        false,
+
+                    position: {
+                        x: 35,
+                        y: 20,
+                    },
+
+                    onValueChanged:
+                        value => {
+
+                            selectedMass =
+                                value;
+
+
+                            if (
+                                !factoryBlock
+                            ) {
+
+                                return;
+                            }
+
+
+                            const size =
+                                getBlockSizePixels(
+                                    value
+                                );
+
+
+                            factoryBlock.setMass(
+                                value
+                            );
+
+
+                            factoryBlock.setSize(
+                                size,
+                                size
+                            );
+                        },
+                });
+
+
+            experiment.add(
+                massControl
             );
 
-            setupBlockDragging(
-                block2
+
+            const resetBlocks =
+                () => {
+
+                    for (
+                        const [
+                            blockId,
+                            labBlock,
+                        ]
+                        of blocksRef.current
+                    ) {
+
+                        physics.removeBody(
+                            blockId
+                        );
+
+
+                        experiment.remove(
+                            labBlock.visual
+                        );
+
+
+                        labBlock.visual.destroy({
+                            children: true,
+                        });
+                    }
+
+
+                    blocksRef.current.clear();
+
+                    dragSamples.clear();
+
+                    clearAllPhotogates();
+                };
+
+
+            const collisionTypeControl =
+                new CollisionTypeControl({
+                    position: {
+                        x: 770,
+                        y: 20,
+                    },
+
+                    value:
+                        "elastic",
+
+                    onValueChanged:
+                        value => {
+
+                            physics.setCollisionType(
+                                value
+                            );
+                        },
+
+                    onReset:
+                        resetBlocks,
+                });
+
+
+            experiment.add(
+                collisionTypeControl
             );
+
+
+            const staticFrictionControl =
+                new ValueControl({
+                    label:
+                        "Static friction coefficient",
+
+                    min: 0,
+                    max: 0.4,
+                    step: 0.1,
+
+                    stepWidth: 34,
+
+                    value: 0,
+
+                    showRandom:
+                        false,
+
+                    showUnlimitedSupply:
+                        false,
+
+                    formatValue:
+                        value =>
+                            value.toFixed(1),
+
+                    position: {
+                        x: 410,
+                        y: 20,
+                    },
+
+                    onValueChanged:
+                        value => {
+
+                            physics.setStaticFrictionCoefficient(
+                                value
+                            );
+                        },
+                });
+
+
+            const kineticFrictionControl =
+                new ValueControl({
+                    label:
+                        "Kinetic friction coefficient",
+
+                    min: 0,
+                    max: 0.16,
+                    step: 0.04,
+
+                    stepWidth: 34,
+
+                    value: 0,
+
+                    showRandom:
+                        false,
+
+                    showUnlimitedSupply:
+                        false,
+
+                    formatValue:
+                        value =>
+                            value.toFixed(2),
+
+                    position: {
+                        x: 410,
+                        y: 100,
+                    },
+
+                    onValueChanged:
+                        value => {
+
+                            physics.setKineticFrictionCoefficient(
+                                value
+                            );
+                        },
+                });
+
+
+            experiment.add(
+                staticFrictionControl
+            );
+
+            experiment.add(
+                kineticFrictionControl
+            );
+
+
+            createFactoryBlock();
         }
     );
 
@@ -956,339 +1296,297 @@ function DynamicsTrackContents() {
                 deltaTimeSeconds;
 
 
-            const photogate =
-                photogateRef.current;
+            const photogates =
+                photogatesRef.current;
 
 
-            if (photogate) {
+            if (
+                photogates.length > 0
+            ) {
 
-                const blocked =
-                    photogateBlockedRef.current;
-
-                const block1 =
-                    block1Ref.current;
-
-                const block2 =
-                    block2Ref.current;
-
-                const body1 =
-                    block1
-                        ? physics.getBody(
-                            block1.id
-                        )
-                        : undefined;
-
-                const body2 =
-                    block2
-                        ? physics.getBody(
-                            block2.id
-                        )
-                        : undefined;
-
-
-                const touchingTogether =
-                    body1 !== undefined &&
-                    body2 !== undefined &&
-                    Math.abs(
-                        body1.position -
-                        body2.position
-                    ) <=
-                    (
-                        body1.width +
-                        body2.width
-                    ) /
-                    2 +
-                    0.0001;
-
-
-                const groupKey =
-                    "touching-pair";
+                const bodies =
+                    Array.from(
+                        blocksRef.current.values()
+                    )
+                    .filter(
+                        block =>
+                            block.attached
+                    )
+                    .map(
+                        block => ({
+                            block,
+                            body:
+                                physics.getBody(
+                                    block.visual.id
+                                ),
+                        })
+                    )
+                    .filter(
+                        (
+                            item
+                        ): item is {
+                            block: LabBlock;
+                            body: NonNullable<
+                                ReturnType<
+                                    DynamicsTrackPhysics["getBody"]
+                                >
+                            >;
+                        } =>
+                            item.body !==
+                            undefined
+                    )
+                    .sort(
+                        (
+                            a,
+                            b
+                        ) =>
+                            a.body.position -
+                            b.body.position
+                    );
 
 
-                if (
-                    touchingTogether &&
-                    body1 &&
-                    body2
+                const groups:
+                    {
+                        ids:
+                            Set<string>;
+
+                        leftEdge:
+                            number;
+
+                        rightEdge:
+                            number;
+                    }[] =
+                    [];
+
+
+                for (
+                    const {
+                        block,
+                        body,
+                    }
+                    of bodies
                 ) {
 
                     const leftEdge =
-                        Math.min(
-                            body1.position -
-                                body1.width /
-                                2,
-
-                            body2.position -
-                                body2.width /
-                                2
-                        );
-
+                        body.position -
+                        body.width /
+                        2;
 
                     const rightEdge =
-                        Math.max(
-                            body1.position +
-                                body1.width /
-                                2,
+                        body.position +
+                        body.width /
+                        2;
 
-                            body2.position +
-                                body2.width /
-                                2
-                        );
-
-
-                    const isBlocking =
-                        photogate.trackPosition >=
-                            leftEdge &&
-                        photogate.trackPosition <=
-                            rightEdge;
-
-
-                    const body1EnteredAt =
-                        blocked.get(
-                            body1.id
-                        );
-
-                    const body2EnteredAt =
-                        blocked.get(
-                            body2.id
-                        );
-
-                    const groupEnteredAt =
-                        blocked.get(
-                            groupKey
-                        );
-
-
-                    const earliestEnteredAt =
-                        Math.min(
-                            body1EnteredAt ??
-                                Infinity,
-
-                            body2EnteredAt ??
-                                Infinity,
-
-                            groupEnteredAt ??
-                                Infinity
-                        );
-
-
-                    blocked.delete(
-                        body1.id
-                    );
-
-                    blocked.delete(
-                        body2.id
-                    );
-
-
-                    if (isBlocking) {
-
-                        blocked.set(
-                            groupKey,
-
-                            Number.isFinite(
-                                earliestEnteredAt
-                            )
-                                ? earliestEnteredAt
-                                : simulationTimeRef.current
-                        );
-                    }
-                    else if (
-                        Number.isFinite(
-                            earliestEnteredAt
-                        )
-                    ) {
-
-                        photogate.addMeasurement(
-                            simulationTimeRef.current -
-                            earliestEnteredAt
-                        );
-
-
-                        blocked.delete(
-                            groupKey
-                        );
-                    }
-                }
-                else {
-
-                    const previousGroupEnteredAt =
-                        blocked.get(
-                            groupKey
-                        );
-
-
-                    blocked.delete(
-                        groupKey
-                    );
-
-
-                    const checkBlock =
-                        (
-                            block:
-                                GlidingBlock2D | null,
-                            inheritedEnteredAt?:
-                                number
-                        ) => {
-
-                            if (!block) {
-                                return;
-                            }
-
-
-                            const body =
-                                physics.getBody(
-                                    block.id
-                                );
-
-
-                            if (!body) {
-
-                                blocked.delete(
-                                    block.id
-                                );
-
-                                return;
-                            }
-
-
-                            const isBlocking =
-                                Math.abs(
-                                    body.position -
-                                    photogate.trackPosition
-                                ) <=
-                                body.width /
-                                2;
-
-
-                            const enteredAt =
-                                blocked.get(
-                                    block.id
-                                ) ??
-                                (
-                                    isBlocking
-                                        ? inheritedEnteredAt
-                                        : undefined
-                                );
-
-
-                            if (
-                                isBlocking &&
-                                enteredAt ===
-                                    undefined
-                            ) {
-
-                                blocked.set(
-                                    block.id,
-                                    simulationTimeRef.current
-                                );
-
-                                return;
-                            }
-
-
-                            if (
-                                isBlocking &&
-                                enteredAt !==
-                                    undefined
-                            ) {
-
-                                blocked.set(
-                                    block.id,
-                                    enteredAt
-                                );
-
-                                return;
-                            }
-
-
-                            if (
-                                !isBlocking &&
-                                enteredAt !==
-                                    undefined
-                            ) {
-
-                                photogate.addMeasurement(
-                                    simulationTimeRef.current -
-                                    enteredAt
-                                );
-
-
-                                blocked.delete(
-                                    block.id
-                                );
-                            }
-                        };
-
-
-                    checkBlock(
-                        block1,
-                        previousGroupEnteredAt
-                    );
-
-                    checkBlock(
-                        block2,
-                        previousGroupEnteredAt
-                    );
-                }
-            }
-
-            const updateBlock =
-                (
-                    block:
-                        GlidingBlock2D | null
-                ) => {
-
-                    if (!block) {
-                        return;
-                    }
+                    const previousGroup =
+                        groups[
+                            groups.length -
+                            1
+                        ];
 
 
                     if (
-                        block.isDragging
+                        previousGroup &&
+                        leftEdge <=
+                            previousGroup.rightEdge +
+                            0.0001
                     ) {
 
-                        return;
+                        previousGroup.ids.add(
+                            block.visual.id
+                        );
+
+                        previousGroup.rightEdge =
+                            Math.max(
+                                previousGroup.rightEdge,
+                                rightEdge
+                            );
+
+                        continue;
                     }
 
 
-                    const body =
-                        physics.getBody(
-                            block.id
+                    groups.push({
+                        ids:
+                            new Set([
+                                block.visual.id,
+                            ]),
+
+                        leftEdge,
+
+                        rightEdge,
+                    });
+                }
+
+
+                photogates.forEach(
+                    (
+                        photogate,
+                        index
+                    ) => {
+
+                        const blockingGroup =
+                            groups.find(
+                                group =>
+                                    photogate.trackPosition >=
+                                        group.leftEdge &&
+                                    photogate.trackPosition <=
+                                        group.rightEdge
+                            );
+
+
+                        const active =
+                            activePhotogateObjectsRef.current[
+                                index
+                            ];
+
+
+                        if (!blockingGroup) {
+
+                            if (active) {
+
+                                photogate.addMeasurement(
+                                    simulationTimeRef.current -
+                                    active.enteredAt
+                                );
+
+
+                                activePhotogateObjectsRef.current[
+                                    index
+                                ] =
+                                    null;
+                            }
+
+
+                            return;
+                        }
+
+
+                        if (!active) {
+
+                            activePhotogateObjectsRef.current[
+                                index
+                            ] = {
+                                ids:
+                                    new Set(
+                                        blockingGroup.ids
+                                    ),
+
+                                enteredAt:
+                                    simulationTimeRef.current,
+                            };
+
+
+                            return;
+                        }
+
+
+                        const samePhysicalObject =
+                            Array.from(
+                                blockingGroup.ids
+                            ).some(
+                                id =>
+                                    active.ids.has(
+                                        id
+                                    )
+                            );
+
+
+                        if (samePhysicalObject) {
+
+                            active.ids =
+                                new Set(
+                                    blockingGroup.ids
+                                );
+
+
+                            return;
+                        }
+
+
+                        photogate.addMeasurement(
+                            simulationTimeRef.current -
+                            active.enteredAt
                         );
 
 
-                    if (!body) {
-                        return;
+                        activePhotogateObjectsRef.current[
+                            index
+                        ] = {
+                            ids:
+                                new Set(
+                                    blockingGroup.ids
+                                ),
+
+                            enteredAt:
+                                simulationTimeRef.current,
+                        };
                     }
+                );
+            }
 
 
-                    const point =
-                        track.getPointAt(
-                            body.position
-                        );
+            for (
+                const {
+                    visual,
+                    attached,
+                }
+                of blocksRef.current.values()
+            ) {
+
+                if (!attached) {
+                    continue;
+                }
 
 
-                    block.position.set(
-                        point.x,
-                        point.y -
-                            BLOCK_HEIGHT_PIXELS /
-                            2
+                if (
+                    visual.isDragging
+                ) {
+
+                    continue;
+                }
+
+
+                const body =
+                    physics.getBody(
+                        visual.id
                     );
 
 
-                    block.setTrackRotation(
-                        track.angleRadians
+                if (!body) {
+                    continue;
+                }
+
+
+                const surfacePoint =
+                    track.getPointAt(
+                        body.position
                     );
-                };
 
 
-            updateBlock(
-                block1Ref.current
-            );
+                const halfHeight =
+                    visual.blockHeight /
+                    2;
 
-            updateBlock(
-                block2Ref.current
-            );
+
+                visual.position.set(
+                    surfacePoint.x +
+                        Math.sin(
+                            track.angleRadians
+                        ) *
+                        halfHeight,
+
+                    surfacePoint.y -
+                        Math.cos(
+                            track.angleRadians
+                        ) *
+                        halfHeight
+                );
+
+
+                visual.setTrackRotation(
+                    track.angleRadians
+                );
+            }
         }
     );
 
@@ -1304,6 +1602,7 @@ export default function DynamicsTrack() {
             width={1000}
             height={600}
             backgroundColor={0xffffff}
+            antialias
         >
             <DynamicsTrackContents />
         </Application>

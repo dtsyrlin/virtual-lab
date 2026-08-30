@@ -31,8 +31,8 @@ export class GlidingBlock2D extends Container {
 
     private _mass: number;
 
-    public readonly blockWidth: number;
-    public readonly blockHeight: number;
+    private _blockWidth: number;
+    private _blockHeight: number;
 
     private readonly body: Graphics;
     private readonly massText: Text;
@@ -82,10 +82,10 @@ export class GlidingBlock2D extends Container {
         this._mass =
             mass;
 
-        this.blockWidth =
+        this._blockWidth =
             width;
 
-        this.blockHeight =
+        this._blockHeight =
             height;
 
 
@@ -96,21 +96,7 @@ export class GlidingBlock2D extends Container {
 
 
         this.body =
-            new Graphics()
-                .roundRect(
-                    -this.blockWidth / 2,
-                    -this.blockHeight / 2,
-                    this.blockWidth,
-                    this.blockHeight,
-                    6
-                )
-                .fill(
-                    0xd9d9d9
-                )
-                .stroke({
-                    width: 2,
-                    color: 0x333333,
-                });
+            new Graphics();
 
 
         this.addChild(
@@ -141,6 +127,9 @@ export class GlidingBlock2D extends Container {
         );
 
 
+        this.drawBody();
+
+
         this.eventMode =
             "static";
 
@@ -167,6 +156,29 @@ export class GlidingBlock2D extends Container {
             "pointerupoutside",
             this.handlePointerUp
         );
+    }
+
+
+    private drawBody() {
+
+        this.body.clear();
+
+
+        this.body
+            .roundRect(
+                -this._blockWidth / 2,
+                -this._blockHeight / 2,
+                this._blockWidth,
+                this._blockHeight,
+                6
+            )
+            .fill(
+                0xd9d9d9
+            )
+            .stroke({
+                width: 2,
+                color: 0x333333,
+            });
     }
 
 
@@ -362,6 +374,22 @@ export class GlidingBlock2D extends Container {
     }
 
 
+    public setSize(
+        width: number,
+        height: number
+    ) {
+
+        this._blockWidth =
+            width;
+
+        this._blockHeight =
+            height;
+
+
+        this.drawBody();
+    }
+
+
     public setDisplayLabel(
         label: string
     ) {
@@ -383,6 +411,18 @@ export class GlidingBlock2D extends Container {
     public get mass(): number {
 
         return this._mass;
+    }
+
+
+    public get blockWidth(): number {
+
+        return this._blockWidth;
+    }
+
+
+    public get blockHeight(): number {
+
+        return this._blockHeight;
     }
 
 
