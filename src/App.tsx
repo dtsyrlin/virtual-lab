@@ -11,6 +11,7 @@ import BalancingWeights from './components/Labs/BalancingWeights'
 import ChemicalEquations from './components/Labs/ChemicalEquations'
 import DynamicsTrack from './components/Labs/DynamicsTrack'
 import TorqueBalance from './components/Labs/TorqueBalance'
+import Probability from './components/Labs/Probability'
 
 type UserInfo = {
   displayName: string
@@ -66,6 +67,10 @@ const experiments = [
   {
     name: 'Torque Balance',
     component: TorqueBalance,
+  },   
+  {
+    name: 'Probability',
+    component: Probability,
   },   
   
   
