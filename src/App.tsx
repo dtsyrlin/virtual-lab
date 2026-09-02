@@ -10,7 +10,7 @@ import VerticalHooksLaw from './components/Labs/VerticalHooksLaw'
 import BalancingWeights from './components/Labs/BalancingWeights'
 import ChemicalEquations from './components/Labs/ChemicalEquations'
 import DynamicsTrack from './components/Labs/DynamicsTrack'
-
+import TorqueBalance from './components/Labs/TorqueBalance'
 
 type UserInfo = {
   displayName: string
@@ -62,6 +62,10 @@ const experiments = [
   {
     name: 'Dynamics Track',
     component: DynamicsTrack,
+  },   
+  {
+    name: 'Torque Balance',
+    component: TorqueBalance,
   },   
   
   
