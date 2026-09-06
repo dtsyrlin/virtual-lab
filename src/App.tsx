@@ -12,6 +12,7 @@ import ChemicalEquations from './components/Labs/ChemicalEquations'
 import DynamicsTrack from './components/Labs/DynamicsTrack'
 import TorqueBalance from './components/Labs/TorqueBalance'
 import Probability from './components/Labs/Probability'
+import RollingTrack from './components/Labs/RollingTrack'
 
 type UserInfo = {
   displayName: string
@@ -72,8 +73,10 @@ const experiments = [
     name: 'Probability',
     component: Probability,
   },   
-  
-  
+  {
+    name: 'Rolling Track',
+    component: RollingTrack,
+  },   
 ]
 
 
