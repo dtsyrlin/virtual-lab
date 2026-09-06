@@ -13,6 +13,7 @@ import DynamicsTrack from './components/Labs/DynamicsTrack'
 import TorqueBalance from './components/Labs/TorqueBalance'
 import Probability from './components/Labs/Probability'
 import RollingTrack from './components/Labs/RollingTrack'
+import VectorAddition from './components/Labs/VectorAddition'
 
 type UserInfo = {
   displayName: string
@@ -77,6 +78,11 @@ const experiments = [
     name: 'Rolling Track',
     component: RollingTrack,
   },   
+  {
+    name: 'Vector Addition',
+    component: VectorAddition,
+  },   
+  
 ]
 
 
