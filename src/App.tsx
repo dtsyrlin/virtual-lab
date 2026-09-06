@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ComponentType } from 'react'
 import './App.css'
 
 import BouncingBall from './components/Labs/BouncingBall'
@@ -19,6 +20,11 @@ type UserInfo = {
   displayName: string
 }
 
+type Experiment = {
+  name: string
+  component: ComponentType
+}
+
 const users: Record<string, UserInfo> = {
   dilemma26: {
     displayName: 'DILEMMA',
@@ -29,10 +35,37 @@ const users: Record<string, UserInfo> = {
   },
 }
 
-const experiments = [
+const physicsExperiments: Experiment[] = [
   {
     name: 'Bouncing Ball',
     component: BouncingBall,
+  },
+  {
+    name: 'Torque Balance',
+    component: TorqueBalance,
+  },
+  {
+    name: 'Vertical Hooks Law',
+    component: VerticalHooksLaw,
+  },
+  {
+    name: 'Horizontal Hooks Law',
+    component: HooksLaw,
+  },
+  {
+    name: 'Dynamics Track',
+    component: DynamicsTrack,
+  },
+  {
+    name: 'Rolling Track',
+    component: RollingTrack,
+  },
+]
+
+const mathExperiments: Experiment[] = [
+  {
+    name: 'Balancing Weights',
+    component: BalancingWeights,
   },
   {
     name: 'Stacking Bars',
@@ -43,47 +76,54 @@ const experiments = [
     component: ProtractorAndRulers,
   },
   {
-    name: 'Geometry',
+    name: 'Geometry Construction',
     component: Geometry,
-  },
-  {
-    name: 'Horizontal Hooks Law',
-    component: HooksLaw,
-  },
-  {
-    name: 'Vertical Hooks Law',
-    component: VerticalHooksLaw,
-  },
-  {
-    name: 'Balancing Weights',
-    component: BalancingWeights,
-  },   
-  {
-    name: 'Chemical Equations',
-    component: ChemicalEquations,
-  },   
-  {
-    name: 'Dynamics Track',
-    component: DynamicsTrack,
-  },   
-  {
-    name: 'Torque Balance',
-    component: TorqueBalance,
-  },   
-  {
-    name: 'Probability',
-    component: Probability,
-  },   
-  {
-    name: 'Rolling Track',
-    component: RollingTrack,
-  },   
+  },  
   {
     name: 'Vector Addition',
     component: VectorAddition,
-  },   
-  
+  },
+  {
+    name: 'Probability',
+    component: Probability,
+  },
+
 ]
+
+const chemistryExperiments: Experiment[] = [
+  {
+    name: 'Chemical Equations',
+    component: ChemicalEquations,
+  },
+
+]
+
+const biologyExperiments: Experiment[] = [
+]
+
+const experimentColumns = [
+  {
+    name: 'Physics',
+    experiments: physicsExperiments,
+  },
+  {
+    name: 'Math',
+    experiments: mathExperiments,
+  },
+  {
+    name: 'Chemistry',
+    experiments: chemistryExperiments,
+  },
+  {
+    name: 'Biology',
+    experiments: biologyExperiments,
+  },
+]
+
+const experiments = experimentColumns.flatMap(
+  (column) => column.experiments
+)
+
 
 
 function App() {
@@ -162,19 +202,37 @@ function App() {
 
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          width: '250px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))',
+          gap: '24px',
+          alignItems: 'start',
         }}
       >
-        {experiments.map((experiment, index) => (
-          <button
-            key={experiment.name}
-            onClick={() => setSelectedExperiment(index)}
-          >
-            {experiment.name}
-          </button>
+        {experimentColumns.map((column) => (
+          <div key={column.name}>
+            <h3>{column.name}</h3>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              {column.experiments.map((experiment) => {
+                const index = experiments.indexOf(experiment)
+
+                return (
+                  <button
+                    key={experiment.name}
+                    onClick={() => setSelectedExperiment(index)}
+                  >
+                    {experiment.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ))}
       </div>
     </div>
