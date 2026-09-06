@@ -68,6 +68,10 @@ export class Photogate2D extends Container {
         number[] =
         [];
 
+    private liveMeasurement:
+        number | null =
+        null;
+
     private onDragMove?: (
         point: Point
     ) => void;
@@ -522,21 +526,49 @@ export class Photogate2D extends Container {
         this.measurements =
             [];
 
+        this.liveMeasurement =
+            null;
+
+        this.updateReadings();
+    }
+
+
+    public setLiveMeasurement(
+        seconds:
+            number | null
+    ) {
+
+        this.liveMeasurement =
+            seconds;
+
         this.updateReadings();
     }
 
 
     private updateReadings() {
 
+        const lines =
+            this.measurements.map(
+                value =>
+                    `${value.toFixed(3)} s`
+            );
+
+
+        if (
+            this.liveMeasurement !==
+            null
+        ) {
+
+            lines.push(
+                `${this.liveMeasurement.toFixed(3)} s`
+            );
+        }
+
+
         this.readingsText.text =
-            this.measurements
-                .map(
-                    value =>
-                        `${value.toFixed(3)} s`
-                )
-                .join(
-                    "\n"
-                );
+            lines.join(
+                "\n"
+            );
     }
 
 

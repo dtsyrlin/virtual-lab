@@ -8,7 +8,11 @@ import {
 } from "react";
 
 import {
+    Container,
+    Graphics,
     Point,
+    Text,
+    TextStyle,
 } from "pixi.js";
 
 import {
@@ -23,10 +27,6 @@ import {
 import {
     Ruler2D,
 } from "../Objects/Ruler2D";
-
-import {
-    Timer2D,
-} from "../Objects/Timer2D";
 
 import {
     GlidingBlock2D,
@@ -105,9 +105,146 @@ interface LabBlock {
 
 interface ActivePhotogateObject {
 
-    ids: Set<string>;
-
     enteredAt: number;
+}
+
+
+class GateToGateDisplay
+    extends Container {
+
+    private readonly valueText:
+        Text;
+
+
+    constructor(
+        x: number,
+        y: number
+    ) {
+
+        super();
+
+
+        this.position.set(
+            x,
+            y
+        );
+
+
+        const label =
+            new Text({
+                text:
+                    "Gate-to-gate Δt, s",
+
+                style:
+                    new TextStyle({
+                        fontFamily:
+                            "Arial",
+
+                        fontSize:
+                            14,
+
+                        fill:
+                            0x111111,
+                    }),
+            });
+
+
+        label.position.set(
+            0,
+            0
+        );
+
+
+        this.addChild(
+            label
+        );
+
+
+        const screen =
+            new Graphics();
+
+
+        screen
+            .roundRect(
+                0,
+                22,
+                160,
+                52,
+                7
+            )
+            .fill({
+                color:
+                    0x222222,
+            });
+
+
+        this.addChild(
+            screen
+        );
+
+
+        this.valueText =
+            new Text({
+                text:
+                    "---",
+
+                style:
+                    new TextStyle({
+                        fontFamily:
+                            "monospace",
+
+                        fontSize:
+                            28,
+
+                        fill:
+                            0xffffff,
+                    }),
+            });
+
+
+        this.valueText.anchor.set(
+            0.5
+        );
+
+
+        this.valueText.position.set(
+            80,
+            48
+        );
+
+
+        this.addChild(
+            this.valueText
+        );
+    }
+
+
+    public setTime(
+        seconds: number
+    ): void {
+
+        this.valueText.text =
+            seconds.toFixed(
+                3
+            );
+    }
+
+
+    public setLiveTime(
+        seconds: number
+    ): void {
+
+        this.setTime(
+            seconds
+        );
+    }
+
+
+    public clear(): void {
+
+        this.valueText.text =
+            "---";
+    }
 }
 
 
@@ -123,10 +260,27 @@ function DynamicsTrackContents() {
             DynamicsTrack2D | null
         >(null);
 
-    const timerRef =
+    const gateToGateDisplayRef =
         useRef<
-            Timer2D | null
+            GateToGateDisplay | null
         >(null);
+
+
+    const pendingGateEntriesRef =
+        useRef<
+            Map<
+                string,
+                {
+                    gateIndex:
+                        number;
+
+                    enteredAt:
+                        number;
+                }
+            >
+        >(
+            new Map()
+        );
 
     const blocksRef =
         useRef<
@@ -287,6 +441,15 @@ function DynamicsTrackContents() {
                 photogates;
 
 
+            const clearGateToGateTiming =
+                () => {
+
+                    pendingGateEntriesRef.current.clear();
+
+                    gateToGateDisplayRef.current?.clear();
+                };
+
+
             const clearPhotogate =
                 (
                     index: number
@@ -301,6 +464,9 @@ function DynamicsTrackContents() {
                         index
                     ] =
                         null;
+
+
+                    clearGateToGateTiming();
                 };
 
 
@@ -1151,6 +1317,8 @@ function DynamicsTrackContents() {
                     dragSamples.clear();
 
                     clearAllPhotogates();
+
+                    clearGateToGateTiming();
                 };
 
 
@@ -1270,19 +1438,19 @@ function DynamicsTrackContents() {
             createFactoryBlock();
 
 
-            const timer =
-                new Timer2D(
+            const gateToGateDisplay =
+                new GateToGateDisplay(
                     790,
                     25
                 );
 
 
-            timerRef.current =
-                timer;
+            gateToGateDisplayRef.current =
+                gateToGateDisplay;
 
 
             experiment.add(
-                timer
+                gateToGateDisplay
             );
         }
     );
@@ -1312,9 +1480,55 @@ function DynamicsTrackContents() {
                 1000;
 
 
-            timerRef.current?.update(
-                deltaTimeSeconds
-            );
+            const stepStartTime =
+                simulationTimeRef.current;
+
+
+            const bodiesBeforeStep =
+                new Map<
+                    string,
+                    {
+                        position: number;
+                        width: number;
+                    }
+                >();
+
+
+            for (
+                const {
+                    visual,
+                    attached,
+                }
+                of blocksRef.current.values()
+            ) {
+
+                if (!attached) {
+                    continue;
+                }
+
+
+                const body =
+                    physics.getBody(
+                        visual.id
+                    );
+
+
+                if (!body) {
+                    continue;
+                }
+
+
+                bodiesBeforeStep.set(
+                    visual.id,
+                    {
+                        position:
+                            body.position,
+
+                        width:
+                            body.width,
+                    }
+                );
+            }
 
 
             physics.move(
@@ -1322,7 +1536,8 @@ function DynamicsTrackContents() {
             );
 
 
-            simulationTimeRef.current +=
+            simulationTimeRef.current =
+                stepStartTime +
                 deltaTimeSeconds;
 
 
@@ -1330,226 +1545,507 @@ function DynamicsTrackContents() {
                 photogatesRef.current;
 
 
+            /*
+             * Live displays are intentionally frame-refreshed.
+             * They are visual feedback only; final measurements
+             * still come from the exact sub-frame physics crossing
+             * times calculated below.
+             */
+            let earliestPendingGateEntry:
+                number | null =
+                null;
+
+
+            for (
+                const pending
+                of pendingGateEntriesRef.current.values()
+            ) {
+
+                if (
+                    earliestPendingGateEntry ===
+                        null ||
+                    pending.enteredAt <
+                        earliestPendingGateEntry
+                ) {
+
+                    earliestPendingGateEntry =
+                        pending.enteredAt;
+                }
+            }
+
+
+            if (
+                earliestPendingGateEntry !==
+                null
+            ) {
+
+                gateToGateDisplayRef.current?.setLiveTime(
+                    Math.max(
+                        0,
+                        simulationTimeRef.current -
+                            earliestPendingGateEntry
+                    )
+                );
+            }
+
+
+            photogates.forEach(
+                (
+                    photogate,
+                    index
+                ) => {
+
+                    const active =
+                        activePhotogateObjectsRef.current[
+                            index
+                        ];
+
+
+                    photogate.setLiveMeasurement(
+                        active
+                            ? Math.max(
+                                0,
+                                simulationTimeRef.current -
+                                    active.enteredAt
+                            )
+                            : null
+                    );
+                }
+            );
+
+
             if (
                 photogates.length > 0
             ) {
 
-                const bodies =
-                    Array.from(
-                        blocksRef.current.values()
-                    )
-                    .filter(
-                        block =>
-                            block.attached
-                    )
-                    .map(
-                        block => ({
-                            block,
-                            body:
-                                physics.getBody(
-                                    block.visual.id
-                                ),
-                        })
-                    )
-                    .filter(
-                        (
-                            item
-                        ): item is {
-                            block: LabBlock;
-                            body: NonNullable<
-                                ReturnType<
-                                    DynamicsTrackPhysics["getBody"]
-                                >
-                            >;
-                        } =>
-                            item.body !==
-                            undefined
-                    )
-                    .sort(
-                        (
-                            a,
-                            b
-                        ) =>
-                            a.body.position -
-                            b.body.position
-                    );
-
-
-                const groups:
-                    {
-                        ids:
-                            Set<string>;
-
-                        leftEdge:
-                            number;
-
-                        rightEdge:
-                            number;
-                    }[] =
-                    [];
-
-
-                for (
-                    const {
-                        block,
-                        body,
-                    }
-                    of bodies
-                ) {
-
-                    const leftEdge =
-                        body.position -
-                        body.width /
-                        2;
-
-                    const rightEdge =
-                        body.position +
-                        body.width /
-                        2;
-
-                    const previousGroup =
-                        groups[
-                            groups.length -
-                            1
-                        ];
-
-
-                    if (
-                        previousGroup &&
-                        leftEdge <=
-                            previousGroup.rightEdge +
-                            0.0001
-                    ) {
-
-                        previousGroup.ids.add(
-                            block.visual.id
-                        );
-
-                        previousGroup.rightEdge =
-                            Math.max(
-                                previousGroup.rightEdge,
-                                rightEdge
-                            );
-
-                        continue;
-                    }
-
-
-                    groups.push({
-                        ids:
-                            new Set([
-                                block.visual.id,
-                            ]),
-
-                        leftEdge,
-
-                        rightEdge,
-                    });
-                }
-
-
+                /*
+                 * Photogate timing is calculated from the physical
+                 * trajectory during this simulation step, not from
+                 * the render-frame boundary.
+                 *
+                 * For each block we solve the fraction of the step
+                 * during which the gate lies between its leading and
+                 * trailing edges.  The intervals from all blocks are
+                 * then merged, so touching blocks behave as one
+                 * continuous object at the gate.
+                 */
                 photogates.forEach(
                     (
                         photogate,
                         index
                     ) => {
 
-                        const blockingGroup =
-                            groups.find(
-                                group =>
-                                    photogate.trackPosition >=
-                                        group.leftEdge &&
-                                    photogate.trackPosition <=
-                                        group.rightEdge
-                            );
+                        const gatePosition =
+                            photogate.trackPosition;
 
 
-                        const active =
+                        const blockedIntervals:
+                            {
+                                start: number;
+                                end: number;
+                            }[] =
+                            [];
+
+
+                        for (
+                            const {
+                                visual,
+                                attached,
+                            }
+                            of blocksRef.current.values()
+                        ) {
+
+                            if (!attached) {
+                                continue;
+                            }
+
+
+                            const before =
+                                bodiesBeforeStep.get(
+                                    visual.id
+                                );
+
+                            const after =
+                                physics.getBody(
+                                    visual.id
+                                );
+
+
+                            if (
+                                !before ||
+                                !after
+                            ) {
+
+                                continue;
+                            }
+
+
+                            const halfWidth =
+                                after.width /
+                                2;
+
+                            const startCenter =
+                                before.position;
+
+                            const endCenter =
+                                after.position;
+
+                            const displacement =
+                                endCenter -
+                                startCenter;
+
+
+                            if (
+                                Math.abs(
+                                    displacement
+                                ) <
+                                1e-12
+                            ) {
+
+                                if (
+                                    gatePosition >=
+                                        startCenter -
+                                        halfWidth &&
+                                    gatePosition <=
+                                        startCenter +
+                                        halfWidth
+                                ) {
+
+                                    blockedIntervals.push({
+                                        start: 0,
+                                        end: 1,
+                                    });
+                                }
+
+
+                                continue;
+                            }
+
+
+                            let entryFraction =
+                                (
+                                    gatePosition -
+                                    halfWidth -
+                                    startCenter
+                                ) /
+                                displacement;
+
+                            let exitFraction =
+                                (
+                                    gatePosition +
+                                    halfWidth -
+                                    startCenter
+                                ) /
+                                displacement;
+
+
+                            if (
+                                entryFraction >
+                                exitFraction
+                            ) {
+
+                                [
+                                    entryFraction,
+                                    exitFraction,
+                                ] = [
+                                    exitFraction,
+                                    entryFraction,
+                                ];
+                            }
+
+
+                            /*
+                             * A new beam-entry event occurs only when
+                             * the leading edge actually crosses the
+                             * gate during this physics step.  If the
+                             * block was already covering the beam at
+                             * the beginning of the step, entryFraction
+                             * is negative and no new hit is generated.
+                             */
+                            if (
+                                entryFraction >=
+                                    -1e-9 &&
+                                entryFraction <=
+                                    1 + 1e-9
+                            ) {
+
+                                const enteredAt =
+                                    stepStartTime +
+                                    Math.max(
+                                        0,
+                                        Math.min(
+                                            1,
+                                            entryFraction
+                                        )
+                                    ) *
+                                    deltaTimeSeconds;
+
+
+                                const pending =
+                                    pendingGateEntriesRef.current.get(
+                                        visual.id
+                                    );
+
+
+                                if (
+                                    pending &&
+                                    pending.gateIndex !==
+                                        index
+                                ) {
+
+                                    gateToGateDisplayRef.current?.setTime(
+                                        Math.abs(
+                                            enteredAt -
+                                            pending.enteredAt
+                                        )
+                                    );
+
+
+                                    pendingGateEntriesRef.current.delete(
+                                        visual.id
+                                    );
+                                }
+                                else {
+
+                                    pendingGateEntriesRef.current.set(
+                                        visual.id,
+                                        {
+                                            gateIndex:
+                                                index,
+
+                                            enteredAt,
+                                        }
+                                    );
+
+
+                                    gateToGateDisplayRef.current?.setLiveTime(
+                                        Math.max(
+                                            0,
+                                            simulationTimeRef.current -
+                                                enteredAt
+                                        )
+                                    );
+                                }
+                            }
+
+
+                            const start =
+                                Math.max(
+                                    0,
+                                    entryFraction
+                                );
+
+                            const end =
+                                Math.min(
+                                    1,
+                                    exitFraction
+                                );
+
+
+                            if (
+                                end >= start &&
+                                end >= 0 &&
+                                start <= 1
+                            ) {
+
+                                blockedIntervals.push({
+                                    start,
+                                    end,
+                                });
+                            }
+                        }
+
+
+                        blockedIntervals.sort(
+                            (
+                                a,
+                                b
+                            ) =>
+                                a.start -
+                                b.start
+                        );
+
+
+                        const mergedIntervals:
+                            {
+                                start: number;
+                                end: number;
+                            }[] =
+                            [];
+
+
+                        for (
+                            const interval
+                            of blockedIntervals
+                        ) {
+
+                            const previous =
+                                mergedIntervals[
+                                    mergedIntervals.length -
+                                    1
+                                ];
+
+
+                            if (
+                                previous &&
+                                interval.start <=
+                                    previous.end +
+                                    1e-9
+                            ) {
+
+                                previous.end =
+                                    Math.max(
+                                        previous.end,
+                                        interval.end
+                                    );
+
+                                continue;
+                            }
+
+
+                            mergedIntervals.push({
+                                start:
+                                    interval.start,
+
+                                end:
+                                    interval.end,
+                            });
+                        }
+
+
+                        let active =
                             activePhotogateObjectsRef.current[
                                 index
                             ];
 
+                        let previousEnd =
+                            0;
 
-                        if (!blockingGroup) {
 
-                            if (active) {
+                        for (
+                            const interval
+                            of mergedIntervals
+                        ) {
+
+                            if (
+                                active &&
+                                interval.start >
+                                    previousEnd +
+                                    1e-9
+                            ) {
+
+                                const exitedAt =
+                                    stepStartTime +
+                                    previousEnd *
+                                    deltaTimeSeconds;
+
 
                                 photogate.addMeasurement(
-                                    simulationTimeRef.current -
+                                    exitedAt -
                                     active.enteredAt
                                 );
 
 
-                                activePhotogateObjectsRef.current[
-                                    index
-                                ] =
+                                photogate.setLiveMeasurement(
+                                    null
+                                );
+
+
+                                active =
                                     null;
                             }
 
 
-                            return;
-                        }
+                            if (!active) {
+
+                                active = {
+                                    enteredAt:
+                                        stepStartTime +
+                                        interval.start *
+                                        deltaTimeSeconds,
+                                };
 
 
-                        if (!active) {
-
-                            activePhotogateObjectsRef.current[
-                                index
-                            ] = {
-                                ids:
-                                    new Set(
-                                        blockingGroup.ids
-                                    ),
-
-                                enteredAt:
-                                    simulationTimeRef.current,
-                            };
-
-
-                            return;
-                        }
-
-
-                        const samePhysicalObject =
-                            Array.from(
-                                blockingGroup.ids
-                            ).some(
-                                id =>
-                                    active.ids.has(
-                                        id
+                                photogate.setLiveMeasurement(
+                                    Math.max(
+                                        0,
+                                        simulationTimeRef.current -
+                                            active.enteredAt
                                     )
-                            );
+                                );
+                            }
 
 
-                        if (samePhysicalObject) {
+                            previousEnd =
+                                interval.end;
 
-                            active.ids =
-                                new Set(
-                                    blockingGroup.ids
+
+                            if (
+                                interval.end <
+                                1 -
+                                1e-9
+                            ) {
+
+                                const exitedAt =
+                                    stepStartTime +
+                                    interval.end *
+                                    deltaTimeSeconds;
+
+
+                                photogate.addMeasurement(
+                                    exitedAt -
+                                    active.enteredAt
                                 );
 
 
-                            return;
+                                photogate.setLiveMeasurement(
+                                    null
+                                );
+
+
+                                active =
+                                    null;
+                            }
                         }
 
 
-                        photogate.addMeasurement(
-                            simulationTimeRef.current -
-                            active.enteredAt
-                        );
+                        if (
+                            active &&
+                            (
+                                mergedIntervals.length ===
+                                    0 ||
+                                previousEnd <
+                                    1 -
+                                    1e-9
+                            )
+                        ) {
+
+                            const exitedAt =
+                                stepStartTime +
+                                previousEnd *
+                                deltaTimeSeconds;
+
+
+                            photogate.addMeasurement(
+                                exitedAt -
+                                active.enteredAt
+                            );
+
+
+                            photogate.setLiveMeasurement(
+                                null
+                            );
+
+
+                            active =
+                                null;
+                        }
 
 
                         activePhotogateObjectsRef.current[
                             index
-                        ] = {
-                            ids:
-                                new Set(
-                                    blockingGroup.ids
-                                ),
-
-                            enteredAt:
-                                simulationTimeRef.current,
-                        };
+                        ] =
+                            active;
                     }
                 );
             }
