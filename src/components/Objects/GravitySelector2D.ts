@@ -11,6 +11,12 @@ type GravityOption = {
   gravity: number;
 };
 
+type GravityButton = {
+  option: GravityOption;
+  background: Graphics;
+  text: Text;
+};
+
 export class GravitySelector2D extends Container {
   public onGravityChanged?: (
     gravity: number
@@ -22,6 +28,10 @@ export class GravitySelector2D extends Container {
     { label: "Mars", gravity: 3.71 },
     { label: "Jupiter", gravity: 24.79 },
   ];
+
+  private readonly buttons: GravityButton[] = [];
+
+  private selectedGravity = 9.81;
 
   constructor(
     xPixels: number,
@@ -35,6 +45,7 @@ export class GravitySelector2D extends Container {
     );
 
     this.createButtons();
+    this.updateButtonStyles();
   }
 
   private createButtons(): void {
@@ -42,8 +53,7 @@ export class GravitySelector2D extends Container {
 
     for (const option of this.options) {
       this.createButton(
-        option.label,
-        option.gravity,
+        option,
         x
       );
 
@@ -52,8 +62,7 @@ export class GravitySelector2D extends Container {
   }
 
   private createButton(
-    label: string,
-    gravity: number,
+    option: GravityOption,
     x: number
   ): void {
     const button = new Container();
@@ -65,30 +74,15 @@ export class GravitySelector2D extends Container {
 
     const background = new Graphics();
 
-    background
-      .roundRect(
-        0,
-        0,
-        75,
-        30,
-        5
-      )
-      .fill({
-        color: 0xdddddd,
-      })
-      .stroke({
-        color: 0x555555,
-        width: 1,
-      });
-
     const style = new TextStyle({
       fontFamily: "Arial",
       fontSize: 13,
       fill: 0x111111,
+      fontWeight: "normal",
     });
 
     const text = new Text({
-      text: label,
+      text: option.label,
       style,
     });
 
@@ -112,12 +106,88 @@ export class GravitySelector2D extends Container {
       ) => {
         event.stopPropagation();
 
+        this.selectedGravity =
+          option.gravity;
+
+        this.updateButtonStyles();
+
         this.onGravityChanged?.(
-          gravity
+          option.gravity
         );
       }
     );
 
+    this.buttons.push({
+      option,
+      background,
+      text,
+    });
+
     this.addChild(button);
+  }
+
+  private updateButtonStyles(): void {
+    for (const button of this.buttons) {
+      const selected =
+        button.option.gravity ===
+        this.selectedGravity;
+
+      button.background.clear();
+
+      button.background
+        .roundRect(
+          0,
+          0,
+          75,
+          30,
+          5
+        )
+        .fill({
+          color: selected
+            ? 0x666666
+            : 0xdddddd,
+        })
+        .stroke({
+          color: selected
+            ? 0x222222
+            : 0x555555,
+          width: selected
+            ? 2
+            : 1,
+        });
+
+      button.text.style.fill =
+        selected
+          ? 0xffffff
+          : 0x111111;
+
+      button.text.style.fontWeight =
+        selected
+          ? "bold"
+          : "normal";
+    }
+  }
+
+  public setGravity(
+    gravity: number
+  ): void {
+    const matchingOption =
+      this.options.find(
+        option =>
+          option.gravity === gravity
+      );
+
+    if (!matchingOption) {
+      return;
+    }
+
+    this.selectedGravity =
+      matchingOption.gravity;
+
+    this.updateButtonStyles();
+  }
+
+  public get gravity(): number {
+    return this.selectedGravity;
   }
 }

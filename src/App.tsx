@@ -15,6 +15,7 @@ import TorqueBalance from './components/Labs/TorqueBalance'
 import Probability from './components/Labs/Probability'
 import RollingTrack from './components/Labs/RollingTrack'
 import VectorAddition from './components/Labs/VectorAddition'
+import Pendulum from './components/Labs/Pendulum'
 
 type UserInfo = {
   displayName: string
@@ -43,6 +44,10 @@ const physicsExperiments: Experiment[] = [
   {
     name: 'Torque Balance',
     component: TorqueBalance,
+  },
+  {
+    name: 'Pendulum',
+    component: Pendulum,
   },
   {
     name: 'Vertical Hooks Law',
