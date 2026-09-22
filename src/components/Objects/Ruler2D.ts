@@ -47,12 +47,14 @@ export class Ruler2D extends Container {
 
   private readonly topRotationHandle: Graphics;
   private readonly bottomRotationHandle: Graphics;
+  private readonly bringToFrontWhenUsed: boolean;
 
   constructor(
     lengthMeters: number,
     initialPosition: Point2D,
     pixelsPerMeter: number,
-    orientation: RulerOrientation = "vertical"
+    orientation: RulerOrientation = "vertical",
+    bringToFrontWhenUsed: boolean = true
   ) {
     super();
 
@@ -73,6 +75,9 @@ export class Ruler2D extends Container {
 
     this.pixelsPerMeter =
       pixelsPerMeter;
+
+    this.bringToFrontWhenUsed =
+      bringToFrontWhenUsed;
 
     /*
      * Ruler origin is its bottom-left corner.
@@ -454,10 +459,14 @@ private handlePointerDown(
    * Measuring tools should remain visible
    * over the experiment while being used.
    */
-  this.parent.setChildIndex(
-    this,
-    this.parent.children.length - 1
-  );
+  if (
+    this.bringToFrontWhenUsed
+  ) {
+    this.parent.setChildIndex(
+      this,
+      this.parent.children.length - 1
+    );
+  }
 
 
   this.isDragging =
@@ -541,10 +550,14 @@ private handlePointerDown(
      * ruler as a measuring tool, so keep
      * it above the experiment.
      */
-    this.parent.setChildIndex(
-      this,
-      this.parent.children.length - 1
-    );
+    if (
+      this.bringToFrontWhenUsed
+    ) {
+      this.parent.setChildIndex(
+        this,
+        this.parent.children.length - 1
+      );
+    }
 
     this.isDragging =
       false;

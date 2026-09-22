@@ -84,7 +84,8 @@ function BouncingBallContents({
             y: TableTopPosMetersFromTop * PIXELS_PER_METER,
           },
           PIXELS_PER_METER,
-          "vertical"
+          "vertical",
+          false
         );
 
       experiment.add(ruler1);

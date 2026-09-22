@@ -212,7 +212,9 @@ export class ValueControl extends Container {
                     text: label,
 
                     style: {
-                        fontSize: 17,
+                        fontFamily: "Segoe UI",
+                        fontSize: 14,
+                        fontWeight: "600",
                         fill: 0x000000,
                     },
                 });
@@ -416,10 +418,16 @@ export class ValueControl extends Container {
                     textValue,
 
                 style: {
+                    fontFamily:
+                        "Segoe UI",
+
                     fontSize:
                         random
-                            ? 12
-                            : 14,
+                            ? 11
+                            : 12,
+
+                    fontWeight:
+                        "normal",
 
                     fill:
                         0x000000,
@@ -747,7 +755,9 @@ export class ValueControl extends Container {
                     "Unlimited supply",
 
                 style: {
-                    fontSize: 15,
+                    fontFamily: "Segoe UI",
+                    fontSize: 12,
+                    fontWeight: "normal",
                     fill: 0x000000,
                 },
             });

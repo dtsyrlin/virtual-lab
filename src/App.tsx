@@ -16,6 +16,7 @@ import Probability from './components/Labs/Probability'
 import RollingTrack from './components/Labs/RollingTrack'
 import VectorAddition from './components/Labs/VectorAddition'
 import Pendulum from './components/Labs/Pendulum'
+import PlanetaryMotion from './components/Labs/PlanetaryMotion'
 
 type UserInfo = {
   displayName: string
@@ -25,6 +26,9 @@ type Experiment = {
   name: string
   component: ComponentType
 }
+
+// Set this to true if/when passcode access is needed again.
+const REQUIRE_PASSCODE = false
 
 const users: Record<string, UserInfo> = {
   dilemma26: {
@@ -48,6 +52,10 @@ const physicsExperiments: Experiment[] = [
   {
     name: 'Pendulum',
     component: Pendulum,
+  },
+  {
+    name: 'Planetary Motion',
+    component: PlanetaryMotion,
   },
   {
     name: 'Vertical Hooks Law',
@@ -141,7 +149,7 @@ function App() {
 
 
   // User exists, but has not entered the correct passcode yet.
-  if (!authorized) {
+  if (REQUIRE_PASSCODE && !authorized) {
     return (
       <div style={{ padding: '30px' }}>
         <h1>Welcome to DILEMMA!</h1>
@@ -183,14 +191,26 @@ function App() {
 
 
   if (selectedExperiment !== null) {
-    const Experiment = experiments[selectedExperiment].component
+    const selected = experiments[selectedExperiment]
+    const Experiment = selected.component
 
     return (
       <>
-        <div style={{ padding: '10px' }}>
+        <div
+          style={{
+            padding: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '18px',
+          }}
+        >
           <button onClick={() => setSelectedExperiment(null)}>
             ← Back to Menu
           </button>
+
+          <h2 style={{ margin: 0 }}>
+            {selected.name}
+          </h2>
         </div>
 
         <Experiment />
@@ -201,7 +221,7 @@ function App() {
 
   return (
     <div style={{ padding: '30px' }}>
-      <h1>{users[enteredPasscode].displayName} Virtual Labs</h1>
+      <h1>Virtual Labs</h1>
 
       <h2>Select an Experiment</h2>
 

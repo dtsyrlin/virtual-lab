@@ -193,7 +193,9 @@ export class CollisionTypeControl extends Container {
                 text,
 
                 style: {
-                    fontSize: 17,
+                    fontFamily: "Segoe UI",
+                    fontSize: 13,
+                    fontWeight: "500",
                     fill: 0x000000,
                 },
             });
@@ -218,7 +220,7 @@ export class CollisionTypeControl extends Container {
             110;
 
         const buttonHeight =
-            32;
+            26;
 
 
         button.clear();
@@ -230,16 +232,17 @@ export class CollisionTypeControl extends Container {
                 y,
                 buttonWidth,
                 buttonHeight,
-                5
+                3
             )
-            .fill(
-                selected
-                    ? 0xd8d8d8
-                    : 0xf4f4f4
-            )
+            .fill({
+                color:
+                    selected
+                        ? 0xdcdcdc
+                        : 0xf0f0f0,
+            })
             .stroke({
-                width: 2,
-                color: 0x555555,
+                width: 1,
+                color: 0x767676,
             });
     }
 
@@ -247,10 +250,10 @@ export class CollisionTypeControl extends Container {
     private draw() {
 
         const buttonHeight =
-            32;
+            26;
 
         const gap =
-            7;
+            5;
 
         const buttonWidth =
             110;
