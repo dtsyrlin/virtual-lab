@@ -15,10 +15,6 @@ import {
 } from "./Experiment2D";
 
 import {
-  ValueControl,
-} from "../Objects/ValueControl";
-
-import {
   Ruler2D,
 } from "../Objects/Ruler2D";
 
@@ -43,19 +39,20 @@ const PIXELS_PER_CENTIMETER = 22;
 const PIXELS_PER_METER = PIXELS_PER_CENTIMETER * 100;
 const SNAP_DISTANCE = 22;
 const CONNECTION_TOLERANCE = 2;
+const MIN_COMPONENT_CM = 0.25;
+const MIN_COMPONENT_PIXELS =
+  MIN_COMPONENT_CM * PIXELS_PER_CENTIMETER;
 
 const FACTORY_ORIGIN = {
   x: 305,
-  y: 395,
+  y: 320,
 };
 
-const FACTORY_Y_AXIS_TOP = 205;
-const FACTORY_Y_AXIS_BOTTOM =
-  2 * FACTORY_ORIGIN.y -
-  FACTORY_Y_AXIS_TOP;
+const FACTORY_Y_AXIS_TOP = 90;
+const FACTORY_Y_AXIS_BOTTOM = 580;
 
 const WORKSPACE_LEFT = 620;
-const WORKSPACE_TOP = 95;
+const WORKSPACE_TOP = 20;
 const WORKSPACE_MARGIN = 30;
 
 const VECTOR_COLOR = 0x2563eb;
@@ -146,8 +143,8 @@ class VectorArrow2D extends Container {
   public readonly kind:
     VectorKind | "result";
 
-  public readonly dx: number;
-  public readonly dy: number;
+  public dx: number;
+  public dy: number;
 
   private readonly arrow =
     new Graphics();
@@ -207,10 +204,7 @@ class VectorArrow2D extends Container {
 
     this.redraw();
 
-    if (
-      kind !== "result" &&
-      draggable
-    ) {
+    if (draggable) {
       this.enableDragging();
     }
   }
@@ -223,6 +217,16 @@ class VectorArrow2D extends Container {
 
   public get headY(): number {
     return this.y + this.dy;
+  }
+
+
+  public setDelta(
+    dx: number,
+    dy: number,
+  ) {
+    this.dx = dx;
+    this.dy = dy;
+    this.redraw();
   }
 
 
@@ -311,7 +315,7 @@ class VectorArrow2D extends Container {
     this.tailHandle.clear();
 
     // A zero-magnitude component has no visible vector and no drag target.
-    if (Math.hypot(this.dx, this.dy) < 0.5) {
+    if (Math.hypot(this.dx, this.dy) < MIN_COMPONENT_PIXELS) {
       return;
     }
 
@@ -470,21 +474,32 @@ function makeButton({
   const background =
     new Graphics();
 
-  background
-    .roundRect(
-      0,
-      0,
-      width,
-      40,
-      7,
-    )
-    .fill(
-      0xf8fafc,
-    )
-    .stroke({
-      width: 2,
-      color: 0x64748b,
-    });
+  const drawBackground =
+    (pressed: boolean) => {
+      background.clear();
+
+      background
+        .roundRect(
+          0,
+          0,
+          width,
+          40,
+          7,
+        )
+        .fill(
+          pressed
+            ? 0xcbd5e1
+            : 0xf8fafc,
+        )
+        .stroke({
+          width: 2,
+          color: pressed
+            ? 0x334155
+            : 0x64748b,
+        });
+    };
+
+  drawBackground(false);
 
   button.addChild(
     background,
@@ -519,14 +534,38 @@ function makeButton({
   button.cursor =
     "pointer";
 
+  const release =
+    () => {
+      drawBackground(false);
+      label.position.y = 20;
+    };
+
   button.on(
     "pointerdown",
-    onClick,
+    () => {
+      drawBackground(true);
+      label.position.y = 21;
+      onClick();
+    },
+  );
+
+  button.on(
+    "pointerup",
+    release,
+  );
+
+  button.on(
+    "pointerupoutside",
+    release,
+  );
+
+  button.on(
+    "pointerout",
+    release,
   );
 
   return button;
 }
-
 
 function VectorAdditionContents() {
 
@@ -536,8 +575,13 @@ function VectorAdditionContents() {
         Experiment2D,
     ) => {
 
-      let selectedMagnitude = 5;
-      let selectedAnglePi = 1 / 6;
+      // The factory vector is edited directly by dragging its tip.
+      let factoryDx =
+        5 * PIXELS_PER_CENTIMETER * Math.cos(Math.PI / 6);
+      let factoryDy =
+        -5 * PIXELS_PER_CENTIMETER * Math.sin(Math.PI / 6);
+
+      const groupCenters: { x: number; y: number }[] = [];
 
       let nextVectorId = 1;
 
@@ -688,6 +732,23 @@ function VectorAdditionContents() {
           555,
           FACTORY_ORIGIN.y,
         )
+        // +x arrowhead
+        .moveTo(
+          555,
+          FACTORY_ORIGIN.y,
+        )
+        .lineTo(
+          547,
+          FACTORY_ORIGIN.y - 5,
+        )
+        .moveTo(
+          555,
+          FACTORY_ORIGIN.y,
+        )
+        .lineTo(
+          547,
+          FACTORY_ORIGIN.y + 5,
+        )
         .moveTo(
           FACTORY_ORIGIN.x,
           FACTORY_Y_AXIS_TOP,
@@ -696,6 +757,23 @@ function VectorAdditionContents() {
           FACTORY_ORIGIN.x,
           FACTORY_Y_AXIS_BOTTOM,
         )
+        // +y arrowhead
+        .moveTo(
+          FACTORY_ORIGIN.x,
+          FACTORY_Y_AXIS_TOP,
+        )
+        .lineTo(
+          FACTORY_ORIGIN.x - 5,
+          FACTORY_Y_AXIS_TOP + 8,
+        )
+        .moveTo(
+          FACTORY_ORIGIN.x,
+          FACTORY_Y_AXIS_TOP,
+        )
+        .lineTo(
+          FACTORY_ORIGIN.x + 5,
+          FACTORY_Y_AXIS_TOP + 8,
+        )
         .stroke({
           width: 1.5,
           color: 0x94a3b8,
@@ -703,6 +781,44 @@ function VectorAdditionContents() {
 
       experiment.add(
         factoryAxes,
+      );
+
+      const xAxisLabel =
+        new Text({
+          text: "x",
+          style: {
+            fontSize: 18,
+            fill: 0x475569,
+            fontStyle: "italic",
+          },
+        });
+
+      xAxisLabel.position.set(
+        535,
+        FACTORY_ORIGIN.y - 22,
+      );
+
+      experiment.add(
+        xAxisLabel,
+      );
+
+      const yAxisLabel =
+        new Text({
+          text: "y",
+          style: {
+            fontSize: 18,
+            fill: 0x475569,
+            fontStyle: "italic",
+          },
+        });
+
+      yAxisLabel.position.set(
+        FACTORY_ORIGIN.x + 10,
+        FACTORY_Y_AXIS_TOP + 12,
+      );
+
+      experiment.add(
+        yAxisLabel,
       );
 
 
@@ -717,24 +833,10 @@ function VectorAdditionContents() {
 
 
       const calculateVector =
-        () => {
-
-          const radians =
-            selectedAnglePi *
-            Math.PI;
-
-          return {
-            dx:
-              selectedMagnitude *
-              Math.cos(radians) *
-              PIXELS_PER_CENTIMETER,
-
-            dy:
-              -selectedMagnitude *
-              Math.sin(radians) *
-              PIXELS_PER_CENTIMETER,
-          };
-        };
+        () => ({
+          dx: factoryDx,
+          dy: factoryDy,
+        });
 
 
       const clearResultants =
@@ -858,305 +960,212 @@ function VectorAdditionContents() {
             );
           }
 
-          clearResultants();
+          
         };
 
-
-      const createWorkspaceVector =
-        (
-          kind:
-            VectorKind,
-          event:
-            FederatedPointerEvent,
-        ) => {
-
-          const full =
-            calculateVector();
-
-          let dx = full.dx;
-          let dy = full.dy;
-
-          if (kind === "x") {
-            dy = 0;
-          }
-
-          if (kind === "y") {
-            dx = 0;
-          }
-
-          const copy =
-            new VectorArrow2D({
-              kind,
-              position: {
-                x:
-                  event.global.x,
-                y:
-                  event.global.y,
-              },
-              dx,
-              dy,
-            });
-
-          vectors.push({
-            id:
-              nextVectorId++,
-            visual:
-              copy,
-          });
-
-          copy.onDropped =
-            () => {
-
-              snapVector(
-                copy,
-              );
-            };
-
-          experiment.add(
-            copy,
-          );
-
-          copy.beginDragging(
-            event,
-          );
-
-          clearResultants();
-        };
-
-
-      const wireFactory =
-        (
-          arrow:
-            VectorArrow2D,
-          kind:
-            VectorKind,
-        ) => {
-
-          arrow.eventMode =
-            "static";
-
-          arrow.cursor =
-            "grab";
-
-          arrow.on(
-            "pointerdown",
-            event => {
-
-              event.stopPropagation();
-
-              createWorkspaceVector(
-                kind,
-                event,
-              );
-            },
-          );
-        };
 
 
       const rebuildFactory =
         () => {
 
           if (factoryVector) {
-
-            experiment.remove(
-              factoryVector,
-            );
-
-            factoryVector.destroy({
-              children: true,
-            });
+            experiment.remove(factoryVector);
+            factoryVector.destroy({ children: true });
           }
-
           if (factoryX) {
-
-            experiment.remove(
-              factoryX,
-            );
-
-            factoryX.destroy({
-              children: true,
-            });
+            experiment.remove(factoryX);
+            factoryX.destroy({ children: true });
           }
-
           if (factoryY) {
-
-            experiment.remove(
-              factoryY,
-            );
-
-            factoryY.destroy({
-              children: true,
-            });
+            experiment.remove(factoryY);
+            factoryY.destroy({ children: true });
           }
 
-          const full =
-            calculateVector();
+          const full = calculateVector();
 
-          factoryX =
-            new VectorArrow2D({
-              kind: "x",
-              position:
-                FACTORY_ORIGIN,
-              dx:
-                full.dx,
-              dy: 0,
-              draggable: false,
+          factoryX = new VectorArrow2D({
+            kind: "x",
+            position: FACTORY_ORIGIN,
+            dx: full.dx,
+            dy: 0,
+            draggable: false,
+          });
+
+          factoryY = new VectorArrow2D({
+            kind: "y",
+            position: {
+              x: FACTORY_ORIGIN.x + full.dx,
+              y: FACTORY_ORIGIN.y,
+            },
+            dx: 0,
+            dy: full.dy,
+            draggable: false,
+          });
+
+          factoryVector = new VectorArrow2D({
+            kind: "vector",
+            position: FACTORY_ORIGIN,
+            dx: full.dx,
+            dy: full.dy,
+            draggable: false,
+          });
+
+          // Invisible, generous hit target at the vector tip.
+          const tip = new Graphics();
+          tip.circle(full.dx, full.dy, 15).fill({
+            color: 0xffffff,
+            alpha: 0.001,
+          });
+          tip.eventMode = "static";
+          tip.cursor = "grab";
+          factoryVector.addChild(tip);
+
+          let draggingTip = false;
+
+          tip.on("pointerdown", event => {
+            event.stopPropagation();
+            draggingTip = true;
+          });
+
+          tip.on("globalpointermove", event => {
+            if (!draggingTip) return;
+
+            let dx = event.global.x - FACTORY_ORIGIN.x;
+            let dy = event.global.y - FACTORY_ORIGIN.y;
+
+            // Factory supports magnitudes from 0 to 10 cm.
+            const maxLength = 10 * PIXELS_PER_CENTIMETER;
+            const length = Math.hypot(dx, dy);
+            if (length > maxLength && length > 0) {
+              dx = dx / length * maxLength;
+              dy = dy / length * maxLength;
+            }
+
+            factoryDx = dx;
+            factoryDy = dy;
+
+            factoryVector.setDelta(factoryDx, factoryDy);
+            factoryX.setDelta(factoryDx, 0);
+            factoryY.position.set(
+              FACTORY_ORIGIN.x + factoryDx,
+              FACTORY_ORIGIN.y,
+            );
+            factoryY.setDelta(0, factoryDy);
+
+            // Keep the tip hit area at the current head.
+            tip.clear();
+            tip.circle(factoryDx, factoryDy, 15).fill({
+              color: 0xffffff,
+              alpha: 0.001,
             });
+          });
 
-          factoryY =
-            new VectorArrow2D({
-              kind: "y",
-              position: {
-                x:
-                  FACTORY_ORIGIN.x +
-                  full.dx,
-                y:
-                  FACTORY_ORIGIN.y,
-              },
-              dx: 0,
-              dy:
-                full.dy,
-              draggable: false,
-            });
+          const stopTipDrag = () => {
+            draggingTip = false;
+          };
+          tip.on("pointerup", stopTipDrag);
+          tip.on("pointerupoutside", stopTipDrag);
 
-          factoryVector =
-            new VectorArrow2D({
-              kind: "vector",
-              position:
-                FACTORY_ORIGIN,
-              dx:
-                full.dx,
-              dy:
-                full.dy,
-              draggable: false,
-            });
-
-          wireFactory(
-            factoryX,
-            "x",
-          );
-
-          wireFactory(
-            factoryY,
-            "y",
-          );
-
-          wireFactory(
-            factoryVector,
-            "vector",
-          );
-
-          /*
-           * Components first, full vector last,
-           * so the full vector sits visually on top.
-           */
-          experiment.add(
-            factoryX,
-          );
-
-          experiment.add(
-            factoryY,
-          );
-
-          experiment.add(
-            factoryVector,
-          );
+          experiment.add(factoryX);
+          experiment.add(factoryY);
+          experiment.add(factoryVector);
         };
 
 
-      const magnitudeControl =
-        new ValueControl({
-          label:
-            "Magnitude, cm",
-          min: 1,
-          max: 10,
-          step: 1,
-          stepWidth: 25,
-          value:
-            selectedMagnitude,
-          showRandom:
-            false,
-          showUnlimitedSupply:
-            false,
-          position: {
-            x: 35,
-            y: 105,
-          },
-          onValueChanged:
-            value => {
+      const chooseGroupCenter = () => {
+        const full = calculateVector();
+        const vectorReach = Math.max(
+          Math.abs(full.dx),
+          Math.abs(full.dy),
+          60,
+        );
+        const padding = vectorReach + 35;
 
-              selectedMagnitude =
-                value;
+        const minX = WORKSPACE_LEFT + padding;
+        const maxX = WORKSPACE_LEFT + workspaceWidth - padding;
+        const minY = WORKSPACE_TOP + 75 + padding;
+        const maxY = WORKSPACE_TOP + workspaceHeight - 75 - padding;
 
-              rebuildFactory();
+        let best = {
+          x: (minX + maxX) / 2,
+          y: (minY + maxY) / 2,
+        };
+        let bestSeparation = -1;
+
+        // Try several random positions and keep the one farthest from
+        // previously created groups. This reduces overlap without making
+        // placement look artificially regular.
+        for (let attempt = 0; attempt < 24; attempt++) {
+          const x = minX < maxX
+            ? minX + Math.random() * (maxX - minX)
+            : WORKSPACE_LEFT + workspaceWidth / 2;
+          const y = minY < maxY
+            ? minY + Math.random() * (maxY - minY)
+            : WORKSPACE_TOP + workspaceHeight / 2;
+
+          const separation = groupCenters.length === 0
+            ? Number.POSITIVE_INFINITY
+            : Math.min(...groupCenters.map(center =>
+                distance(x, y, center.x, center.y),
+              ));
+
+          if (separation > bestSeparation) {
+            best = { x, y };
+            bestSeparation = separation;
+          }
+        }
+
+        groupCenters.push(best);
+        return best;
+      };
+
+
+      const createVectorGroup = () => {
+        
+
+        const full = calculateVector();
+        const center = chooseGroupCenter();
+        const jitter = 18;
+
+        const specs: {
+          kind: VectorKind;
+          dx: number;
+          dy: number;
+        }[] = [
+          { kind: "vector", dx: full.dx, dy: full.dy },
+          { kind: "x", dx: full.dx, dy: 0 },
+          { kind: "y", dx: 0, dy: full.dy },
+        ];
+
+        for (const spec of specs) {
+          // Magnitude-zero vector/component does not exist in the workspace.
+          if (Math.hypot(spec.dx, spec.dy) < MIN_COMPONENT_PIXELS) continue;
+
+          const copy = new VectorArrow2D({
+            kind: spec.kind,
+            position: {
+              x: center.x + (Math.random() * 2 - 1) * jitter,
+              y: center.y + (Math.random() * 2 - 1) * jitter,
             },
-        });
+            dx: spec.dx,
+            dy: spec.dy,
+          });
 
-      experiment.add(
-        magnitudeControl,
-      );
+          vectors.push({
+            id: nextVectorId++,
+            visual: copy,
+          });
 
-
-      const angleControl =
-        new ValueControl({
-          label:
-            "Angle, radians",
-          min: 0,
-          max: 2,
-          step: 1 / 6,
-          stepWidth: 44,
-          value:
-            selectedAnglePi,
-          showRandom:
-            false,
-          showUnlimitedSupply:
-            false,
-          formatValue:
-            value => {
-              const sixths =
-                Math.round(value * 6);
-
-              if (sixths === 0) return "0";
-              if (sixths === 6) return "π";
-              if (sixths === 12) return "2π";
-
-              const gcd = (a: number, b: number): number =>
-                b === 0 ? Math.abs(a) : gcd(b, a % b);
-
-              const divisor = gcd(sixths, 6);
-              const numerator = sixths / divisor;
-              const denominator = 6 / divisor;
-
-              if (denominator === 1)
-                return numerator === 1 ? "π" : `${numerator}π`;
-
-              return numerator === 1
-                ? `π/${denominator}`
-                : `${numerator}π/${denominator}`;
-            },
-          position: {
-            x: 35,
-            y: 20,
-          },
-          onValueChanged:
-            value => {
-
-              selectedAnglePi =
-                value;
-
-              rebuildFactory();
-            },
-        });
-
-      experiment.add(
-        angleControl,
-      );
+          copy.onDropped = () => snapVector(copy);
+          experiment.add(copy);
+        }
+      };
 
 
       const addVectors =
         () => {
 
-          clearResultants();
+          
 
           if (
             vectors.length === 0
@@ -1363,6 +1372,7 @@ function VectorAdditionContents() {
           }
 
           vectors.length = 0;
+          groupCenters.length = 0;
         };
 
 
@@ -1375,7 +1385,10 @@ function VectorAdditionContents() {
           0.20,
           {
             x: WORKSPACE_LEFT + 35,
-            y: WORKSPACE_TOP + 450,
+            y: Math.max(
+              WORKSPACE_TOP + 300,
+              window.innerHeight - 75,
+            ),
           },
           PIXELS_PER_METER,
           "horizontal",
@@ -1407,29 +1420,35 @@ function VectorAdditionContents() {
       );
 
 
+      // Add / Reset now occupy the former control area.
       experiment.add(
         makeButton({
-          text:
-            "Add",
-          x:
-            WORKSPACE_LEFT,
+          text: "Add",
+          x: WORKSPACE_LEFT - 105,
           y: 25,
           width: 90,
-          onClick:
-            addVectors,
+          onClick: addVectors,
         }),
       );
 
       experiment.add(
         makeButton({
-          text:
-            "Reset",
-          x:
-            WORKSPACE_LEFT + 105,
-          y: 25,
-          width: 100,
-          onClick:
-            reset,
+          text: "Clear",
+          x: WORKSPACE_LEFT - 105,
+          y: 75,
+          width: 90,
+          onClick: reset,
+        }),
+      );
+
+      // Small transfer button between the factory plane and workspace.
+      experiment.add(
+        makeButton({
+          text: ">",
+          x: WORKSPACE_LEFT - 42,
+          y: FACTORY_ORIGIN.y - 20,
+          width: 34,
+          onClick: createVectorGroup,
         }),
       );
 
