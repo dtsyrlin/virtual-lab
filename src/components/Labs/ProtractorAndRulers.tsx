@@ -31,6 +31,38 @@ function ProtractorAndRulersContents() {
     (experiment: Experiment2D) => {
 
       // ==================================================
+      // PROTRACTOR
+      // ==================================================
+
+      const protractor =
+        new Protractor2D(
+          0.3,
+          {
+            x: 400,
+            y: 600,
+          },
+          PIXELS_PER_METER,
+        );
+
+      experiment.add(
+        protractor
+      );
+
+
+      /*
+       * The rulers bring themselves to the front when dragged.
+       * Therefore simply adding the protractor last is not enough.
+       * Use Pixi's zIndex sorting so the protractor always wins,
+       * even after a ruler is selected or dragged.
+       */
+      if (protractor.parent) {
+        protractor.parent.sortableChildren = true;
+      }
+
+      protractor.zIndex = 100000;
+
+
+      // ==================================================
       // RULER FACTORY
       // ==================================================
 
@@ -59,6 +91,11 @@ function ProtractorAndRulersContents() {
           PIXELS_PER_METER,
           "vertical"
         );
+
+      // The factory ruler is display-only.  Ruler2D normally has its
+      // own drag/rotation interactions (including interactive ends),
+      // but none of those should be reachable while it lives in the factory.
+      factoryRuler.eventMode = "none";
 
       factory.addChild(
         factoryRuler
@@ -106,12 +143,15 @@ function ProtractorAndRulersContents() {
           event.stopPropagation();
 
 
+          // Create the ruler exactly on top of the factory.
+          // Then forward this same pointer-down event to it so
+          // the user is immediately dragging the new ruler.
           const ruler =
             new Ruler2D(
               1,
               {
-                x: 120,
-                y: 600,
+                x: factory.position.x,
+                y: factory.position.y,
               },
               PIXELS_PER_METER,
               "vertical"
@@ -119,6 +159,13 @@ function ProtractorAndRulersContents() {
 
           experiment.add(
             ruler
+          );
+
+          ruler.zIndex = 0;
+
+          ruler.emit(
+            "pointerdown",
+            event
           );
         }
       );
@@ -131,22 +178,6 @@ function ProtractorAndRulersContents() {
 
       experiment.add(
         factory
-      );
-
-
-      // ==================================================
-      // PROTRACTOR
-      // ==================================================
-
-      experiment.add(
-        new Protractor2D(
-          0.3,
-          {
-            x: 400,
-            y: 600,
-          },
-          PIXELS_PER_METER,
-        )
       );
 
     }
