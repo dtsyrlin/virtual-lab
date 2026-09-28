@@ -17,6 +17,7 @@ import RollingTrack from './components/Labs/RollingTrack'
 import VectorAddition from './components/Labs/VectorAddition'
 import Pendulum from './components/Labs/Pendulum'
 import PlanetaryMotion from './components/Labs/PlanetaryMotion'
+import MetalAcidReaction from './components/Labs/MetalAcidReaction'
 
 type UserInfo = {
   displayName: string
@@ -107,6 +108,10 @@ const chemistryExperiments: Experiment[] = [
   {
     name: 'Chemical Equations',
     component: ChemicalEquations,
+  },
+  {
+    name: 'Metal Acid Reaction',
+    component: MetalAcidReaction,
   },
 
 ]
