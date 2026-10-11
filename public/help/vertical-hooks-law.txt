@@ -1,0 +1,11 @@
+Drag a spring from one of the spring factories to the top support and release it near the attachment point. The first object must be a spring.
+
+To extend the hanging chain, drag another spring or a weight to the free bottom end of the last attached object. Release it close to the connection point to snap it into place.
+
+Drag an attached weight up or down with the left mouse button, then release it to set the system moving.
+
+To disconnect an attached spring or weight, hold the right mouse button and drag it away. Disconnect from the free end of the chain first.
+
+To slow the oscillations, move the mouse pointer over a weight and hold it there.
+
+Use the ruler and timer to measure length and elapsed time.

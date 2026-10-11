@@ -1,0 +1,5 @@
+Drag the ball to a starting height and release it.
+
+Use the ruler to measure heights and the timer to measure motion.
+
+Change gravity to compare how the motion changes.

@@ -1,0 +1,11 @@
+On the left coordinate plane, drag the tip of the blue factory vector to set its length and direction (up to 10 cm). Its horizontal and vertical components update automatically.
+
+Click the > button to create a copy of the vector (blue) and its x (orange) and y (green) components in the workspace on the right. Repeat with different factory settings to create more vectors.
+
+Drag any created vector or component by its arrow or tail to reposition it in the workspace. Bring an arrowhead near another vector’s tail to snap them together.
+
+Click Add to draw a purple resultant for each connected chain of two or more vectors. You can drag the purple resultant independently for comparison.
+
+Click Clear to remove workspace vectors, components, and resultants. The factory vector remains available.
+
+Drag the ruler or protractor to position it for measurements. Rotate the ruler by dragging one of its ends; rotate the protractor using its rotation handles.

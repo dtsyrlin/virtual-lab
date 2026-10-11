@@ -1,0 +1,13 @@
+To change the incline, drag the right end of the track upward or downward. The left end stays in place. The track can tilt up to 15°.
+
+Select a mass (1–5 kg) using the Mass control, then drag a block from the factory at the upper left onto the track. Repeat to add more blocks.
+
+Drag a block along the track to reposition it. Give it a quick push by dragging and releasing it while moving to launch it with an initial velocity.
+
+Use the Static friction coefficient and Kinetic friction coefficient controls to change the friction between the blocks and track.
+
+Choose Elastic or Inelastic to change how blocks collide. Use Reset to remove the blocks and clear measurements.
+
+Drag the two photogates (G1 and G2) along the track to position them. Each gate measures how long a block interrupts its beam; the Gate-to-gate display measures the time between the two gates.
+
+Use the ruler to measure distances. Rotate the ruler by dragging one of its ends.

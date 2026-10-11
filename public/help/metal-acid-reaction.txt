@@ -1,0 +1,9 @@
+Press and hold the valve on the H₂O bottle to add water to the flask. Release the valve to stop the flow. Use the bottle graduations to control the amount.
+
+Press and hold the valve on the 1.0 M HCl bottle to add hydrochloric acid. Release it to stop the flow.
+
+Select a Grain Size (Large, Med, Small, or Fine) before adding magnesium. Click the lever below the Mg container to drop a grain into the flask. Repeat to add more grains. Grain Size is locked after the first grain until Reset.
+
+Adding liquid pushes the air already in the flask into the gas syringe. To expel that air, drag the exposed plunger arm on the right of the syringe to the left until the syringe reads zero. The valve above the syringe opens automatically while you push the plunger inward, letting the air escape; it closes when you release the plunger. You do not need to click the valve.
+
+Click START or STOP to control the timer. Click RESET to empty the apparatus, reset the syringe and timer, and begin a new run.

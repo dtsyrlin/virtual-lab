@@ -1,0 +1,7 @@
+Drag weights from the four factories onto either side of the balance. You can stack multiple weights on each platform, move them between sides, or drag them away.
+
+Use the controls beside each factory to select a weight. The first three factories offer values from 1 to 13; the fourth offers values from 14 to 27.
+
+Select R1 or R2 to create a weight with a hidden, randomly chosen value within that factory's displayed range. Switching between R1 and R2 generates a new random weight. Weights with hidden values are marked with letters such as w, x, y, and z.
+
+Changing a weight control clears the weights already placed on the balance.

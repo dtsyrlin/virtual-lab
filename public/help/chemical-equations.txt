@@ -1,0 +1,5 @@
+Enter the reactants and products and confirm the equation.
+
+Move molecules and compare atom counts on both sides.
+
+Balance the equation so that each element has the same atom count on both sides.

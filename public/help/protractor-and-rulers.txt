@@ -1,0 +1,7 @@
+Drag a ruler out of the ruler factory to create a new ruler. Repeat to create as many rulers as needed.
+
+Drag the body of a ruler to move it. Drag one of its ends to rotate it; the ruler in the factory cannot be rotated.
+
+Drag the protractor to reposition it, and use its rotation handles to change its angle.
+
+Read distances from the ruler markings and angles from the protractor markings.

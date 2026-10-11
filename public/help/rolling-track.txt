@@ -1,0 +1,13 @@
+To change the incline, drag the right end of the track upward or downward. The left end stays in place. The track can tilt up to 15°.
+
+Drag a block, ring, or disk from one of the factories at the top onto the track. Only one object can be on the track at a time: dragging out another replaces the previous one. Drag the object along the track to set its starting position, then release it.
+
+Use the Static friction coefficient and Kinetic friction coefficient controls to change friction.
+
+Drag a photogate pair from the factory at the upper right and drop it near the track to attach it. A new pair remains available at the factory, so you can place multiple pairs.
+
+Once attached, you can adjust a pair's position along the track, the distance between its two beams, and the height of the beams using its draggable controls. The display measures the time between the object crossing the first and second beam.
+
+Click Reset near the photogate factory to remove all photogate pairs and create a fresh factory. This does not replace the rolling object.
+
+Use the ruler to measure distances. Rotate the ruler by dragging one of its ends.

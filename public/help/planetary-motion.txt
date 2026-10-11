@@ -1,0 +1,9 @@
+• Drag the planet around the star to place it at a different point in its orbit. Watch how the star's position changes in the Person's Perspective view.
+
+• Drag the person around the planet's surface to choose a different observation point. The Person's Perspective view updates to show where the star appears from that location.
+
+• Use the Axial Rotation / Mean Orbital Motion controls to choose how quickly the planet spins relative to its orbit. Choose 0 for no axial rotation, positive values for one direction, or negative values to reverse the spin.
+
+• Use the orbit-shape control to switch between a circular and an elliptical orbit. Adjust eccentricity to make the elliptical orbit more or less stretched.
+
+• Use the speed control to change how quickly the simulation runs. Compare the planet's motion around the star with the view seen by the person standing on the planet.

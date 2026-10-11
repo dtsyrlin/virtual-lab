@@ -1,0 +1,15 @@
+Drag a spring from one of the spring factories to the left support and release it near the attachment point. The first object must be a spring.
+
+To extend the chain, drag another spring or a weight to the free right end of the last attached object. Release it close to the connection point to snap it into place.
+
+To connect the movable right support, drag it so its attachment point meets the free end of a spring, then release. The chain must end with a spring to make this connection.
+
+Once connected, drag the right support left or right to stretch or compress the springs.
+
+Drag an attached weight left or right with the left mouse button and release it to set the system moving.
+
+To disconnect an attached spring, weight, or the right support, hold the right mouse button and drag it away. Disconnect from the free end first.
+
+To slow the oscillations, move the mouse pointer over a weight and hold it there.
+
+Use the ruler and timer to measure length and elapsed time.

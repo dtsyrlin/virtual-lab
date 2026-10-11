@@ -1,0 +1,13 @@
+Geometry Construction — Help
+
+• Move the two rulers around the workspace to measure distances and position straightedges for geometric constructions. One ruler is 1 meter long and the other is 0.5 meter long.
+
+• Rotate a ruler by dragging one of its ends. Drag its body to reposition it without changing its angle.
+
+• Move the protractor to an angle you want to measure. Rotate and align it with the lines of your construction to read the angle.
+
+• Use the pencil to draw on the workspace. Position the rulers as guides when you want straight lines.
+
+• Use the eraser to remove unwanted marks from your drawing.
+
+• Combine the tools to construct and measure geometric figures, such as triangles and angles.

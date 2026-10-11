@@ -50,7 +50,7 @@ export function normalizeFormula(
       /\s+/g,
       "",
     )
-    .toUpperCase();
+    ;
 }
 
 
@@ -79,7 +79,7 @@ export function parseFormula(
 
 
   const tokenPattern =
-    /([A-Z])(\d*)/g;
+    /([A-Z][a-z]?)(\d*)/g;
 
 
   let lastIndex = 0;

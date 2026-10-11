@@ -1,0 +1,7 @@
+Adjust the pendulum length using the top knob.
+
+Displace and release the pendulum to start its motion.
+
+To slow the pendulum down, move the mouse pointer over the swinging bob. Keeping the pointer over it applies damping.
+
+Use the timer and protractor to make measurements; change gravity to compare.

@@ -1,0 +1,5 @@
+Place weights on the beam on either side of the pivot.
+
+Move weights to different positions and observe the balance.
+
+Compare the effects of weight and distance from the pivot.

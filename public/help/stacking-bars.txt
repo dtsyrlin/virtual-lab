@@ -1,0 +1,9 @@
+Use the Bar A, Bar B, and Target controls to choose lengths. Drag bars into the workspace and arrange them end-to-end or stack them to compare lengths. Nearby bar ends and edges snap into alignment.
+
+With Unlimited Supply enabled, dragging from Bar A or Bar B creates another copy. Turn it off to move the original bar instead.
+
+Select R1 or R2 on a length control to generate a new random length within the displayed range. Switching between R1 and R2 generates another random length and hides its numerical value.
+
+The Target bar cannot be dragged. You can use the ruler to measure lengths. Changing a length control clears the bars previously copied into the workspace.
+
+Rotate the ruler by dragging one of its ends. 

@@ -119,6 +119,11 @@ const chemistryExperiments: Experiment[] = [
 const biologyExperiments: Experiment[] = [
 ]
 
+// Help files live in public/help and are served by Vite in development and production.
+// To edit instructions, change the corresponding .txt file; no App.tsx changes needed.
+const helpFileFor = (name: string) =>
+  `${import.meta.env.BASE_URL}help/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.txt`
+
 const experimentColumns = [
   {
     name: 'Physics',
@@ -151,6 +156,30 @@ function App() {
   const [enteredPasscode, setEnteredPasscode] = useState('')
   const [authorized, setAuthorized] = useState(false)
   const [wrongPasscode, setWrongPasscode] = useState(false)
+
+
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpText, setHelpText] = useState<string | null>(null)
+  const [helpError, setHelpError] = useState(false)
+
+  const openHelp = async (name: string) => {
+    setHelpOpen(true)
+    setHelpText(null)
+    setHelpError(false)
+    try {
+      const response = await fetch(helpFileFor(name), { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const contentType = response.headers.get('content-type') ?? ''
+      const content = await response.text()
+      // Some production hosts return index.html (HTTP 200) for a missing .txt file.
+      if (contentType.includes('text/html') || /^\s*<(?:!doctype\s+html|html|head|body|div|script)\b/i.test(content)) {
+        throw new Error('Help text file is missing')
+      }
+      setHelpText(content)
+    } catch {
+      setHelpError(true)
+    }
+  }
 
 
   // User exists, but has not entered the correct passcode yet.
@@ -209,14 +238,48 @@ function App() {
             gap: '18px',
           }}
         >
-          <button onClick={() => setSelectedExperiment(null)}>
+          <button onClick={() => { setSelectedExperiment(null); setHelpOpen(false) }}>
             ← Back to Menu
           </button>
 
           <h2 style={{ margin: 0 }}>
             {selected.name}
           </h2>
+          <button style={{ marginLeft: 'auto' }} onClick={() => void openHelp(selected.name)}>
+            ? Help
+          </button>
         </div>
+
+        {helpOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selected.name} help`}
+            onClick={() => setHelpOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+              zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+          >
+            <div onClick={(event) => event.stopPropagation()}
+              style={{ background: '#fff', color: '#222', borderRadius: 12, padding: 24,
+                width: 'min(560px, 100%)', maxHeight: '80vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+              <h2 style={{ marginTop: 0 }}>{selected.name} — Help</h2>
+              {helpError ? (
+                <p style={{ textAlign: 'left' }}>Help text file is missing.</p>
+              ) : helpText === null ? (
+                <p style={{ textAlign: 'left' }}>Loading instructions...</p>
+              ) : (
+                <ul style={{ lineHeight: 1.7, paddingLeft: 24, textAlign: 'left', listStylePosition: 'outside' }}>
+                  {helpText.split(/\n\s*\n/).map((step, index) => (
+                    <li key={index} style={{ marginBottom: 8 }}>{step.trim()}</li>
+                  ))}
+                </ul>
+              )}
+              <div style={{ textAlign: 'right' }}>
+                <button onClick={() => setHelpOpen(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Experiment />
       </>

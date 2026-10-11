@@ -1,0 +1,5 @@
+Adjust the sectors of the probability circle.
+
+Rotate the sectors to change their overlap.
+
+Observe how intersection, union, and conditional probabilities change.
